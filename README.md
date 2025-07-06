@@ -1,5 +1,7 @@
 # 🧠 Protein-Ligand Binding Affinity Predictor
 
+<img src="Logo/logo-banner.jpeg">
+
 ## Overview
 
 This project implements an AI-powered system to predict binding affinity between proteins and ligands, accelerating drug discovery by computationally identifying promising drug-target interactions before expensive experimental validation.
