@@ -15,7 +15,7 @@
 \pagestyle{fancy}
 \fancyhf{}
 \rhead{Pranav Verma}
-\lhead{AI Drug Discovery Platform}
+\lhead{Affinify: AI Drug Discovery Platform}
 \cfoot{\thepage}
 
 % Title formatting
@@ -29,29 +29,33 @@
 \centering
 \vspace*{2cm}
 
-{\Huge\bfseries AI-Powered Protein-Ligand Binding Affinity Predictor}
+{\Huge\bfseries Affinify: AI-Powered Protein-Ligand Binding Affinity Predictor}
 
 \vspace{1.5cm}
 
 {\Large\textit{An Interactive Platform for Drug Discovery Simulation}}
 
-\vspace{2cm}
-
+\vspace{1cm}
 
 {\large\textbf{Project Synopsis}}
 
 \vspace{2cm}
 
 \begin{tabular}{ll}
-\textbf{Student Name:} & Pranav Verma \\
-\textbf{Class:} & XII \\
+\textbf{Lead Collaborator:} & Pranav Verma \\
+\textbf{Class:} & XII Aryabhatta \\
 \textbf{Subject:} & Computer Science / Biology \\
 \textbf{School:} & Lotus Valley International School \\
 \textbf{Project Duration:} & 8-10 Weeks \\
 \textbf{Date:} & \today
 \end{tabular}
 
+\vspace{2cm}
+
+\includegraphics[width=1\textwidth]{../../Logo/logo-banner.jpeg}
+
 \vfill
+
 \end{titlepage}
 
 % Table of Contents
@@ -62,7 +66,14 @@
 
 This project presents the development of an AI-powered platform for predicting protein-ligand binding affinity, a critical component in modern drug discovery. The system combines machine learning algorithms with molecular visualization techniques to create an interactive tool that can predict how strongly potential drug compounds will bind to target proteins. The platform features a user-friendly web interface built using Streamlit, 3D molecular visualization capabilities, and multiple predictive models including traditional machine learning and deep learning approaches.
 
-The primary objective is to demonstrate the application of artificial intelligence in pharmaceutical research while creating an educational tool that makes complex biochemical concepts accessible to students and researchers. The project aims to achieve prediction accuracy with R² > 0.7 and processing speeds under 5 seconds per prediction, making it suitable for real-time demonstrations.
+The primary objective of this project is to demonstrate the application of artificial intelligence in pharmaceutical research while creating an educational tool that simplifies complex biochemical concepts for students and researchers. Specifically, the project aims to achieve:
+
+\begin{itemize}
+    \item Prediction accuracy with $R^2 > 0.7$
+    \item Processing speeds under 7 seconds per prediction
+\end{itemize}
+
+These goals ensure the platform is suitable for real-time demonstrations and educational purposes.
 
 \section{Introduction and Background}
 
@@ -88,29 +99,9 @@ Protein-ligand binding affinity prediction is fundamental to:
     \item Enabling personalized medicine approaches
 \end{itemize}
 
-\section{Literature Review}
-
 \subsection{Current State of Drug Discovery}
 Traditional drug discovery relies heavily on experimental screening of thousands of compounds, which is both time-intensive and costly. Recent advances in computational methods have introduced virtual screening techniques that can significantly reduce the number of compounds that need to be tested experimentally.
 
-\subsection{Machine Learning in Drug Discovery}
-Recent research has demonstrated the effectiveness of various machine learning approaches:
-\begin{itemize}
-    \item \textbf{Random Forest and XGBoost:} Effective for molecular descriptor-based predictions
-    \item \textbf{Deep Neural Networks:} Capable of learning complex molecular representations
-    \item \textbf{3D Convolutional Neural Networks:} Process spatial information in protein-ligand complexes
-    \item \textbf{Graph Neural Networks:} Model molecular structures as graphs
-\end{itemize}
-
-\subsection{Existing Datasets and Tools}
-Key resources for this project include:
-\begin{itemize}
-    \item \textbf{BindingDB:} Comprehensive database of binding affinities
-    \item \textbf{PDBBind:} Refined dataset of protein-ligand complexes
-    \item \textbf{ChEMBL:} Large-scale bioactivity database
-    \item \textbf{RDKit:} Open-source cheminformatics toolkit
-    \item \textbf{BioPython:} Computational biology tools
-\end{itemize}
 
 \section{Objectives}
 
@@ -146,12 +137,6 @@ The project follows a modular architecture with distinct components:
 
 \subsection{Data Collection and Processing}
 \subsubsection{Data Sources}
-\begin{itemize}
-    \item BindingDB for experimental binding affinity data
-    \item PDBBind for high-quality protein-ligand complexes
-    \item ChEMBL for bioactivity information
-    \item Protein Data Bank (PDB) for 3D protein structures
-\end{itemize}
 
 \subsubsection{Data Preprocessing}
 \begin{itemize}
@@ -241,6 +226,26 @@ The project follows a modular architecture with distinct components:
     \item Documentation and user guides
 \end{itemize}
 
+\begin{table}[h!]
+\centering
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Week} & \textbf{Task} & \textbf{Milestone} \\
+\hline
+1-2 & Environment Setup \& Data Collection & Functional development environment \\
+\hline
+3-4 & Data Processing \& Feature Engineering & Processed datasets ready \\
+\hline
+5-6 & Model Development & Trained ML models \\
+\hline
+7-8 & Visualization \& Web Interface & Functional web application \\
+\hline
+9-10 & Testing \& Expo Preparation & Complete demonstration ready \\
+\hline
+\end{tabular}
+\caption{Project Timeline and Key Milestones}
+\end{table}
+
 \section{Expected Outcomes}
 
 \subsection{Technical Deliverables}
@@ -263,9 +268,9 @@ The project follows a modular architecture with distinct components:
 
 \subsection{Performance Metrics}
 \begin{itemize}
-    \item \textbf{Accuracy:} R² > 0.7, RMSE < 1.0 pKd units
-    \item \textbf{Speed:} < 5 seconds per prediction
-    \item \textbf{Coverage:} 10,000+ protein-ligand pairs in database
+    \item \textbf{Accuracy:} $R^2 > 0.7$, RMSE $< 1.0$ pKd units
+    \item \textbf{Speed:} $< 5$ seconds per prediction
+    \item \textbf{Coverage:} 10,000+ protein-ligand pairs in the database
     \item \textbf{Usability:} Intuitive interface requiring no technical expertise
 \end{itemize}
 
@@ -274,7 +279,7 @@ The project follows a modular architecture with distinct components:
 \subsection{Hardware Requirements}
 \begin{itemize}
     \item Computer with minimum 8GB RAM (16GB preferred)
-    \item Graphics card for deep learning acceleration (optional)
+    \item Graphics card for deep learning acceleration (required) \textbf{OR} Google Colab T4 GPU model (free access)
     \item Stable internet connection for data downloading
     \item Storage space for molecular datasets (minimum 50GB)
 \end{itemize}
@@ -296,28 +301,6 @@ The project follows a modular architecture with distinct components:
     \item Protein Data Bank structures (free access)
 \end{itemize}
 
-\section{Timeline and Milestones}
-
-\begin{table}[h!]
-\centering
-\begin{tabular}{|l|l|l|}
-\hline
-\textbf{Week} & \textbf{Task} & \textbf{Milestone} \\
-\hline
-1-2 & Environment Setup \& Data Collection & Functional development environment \\
-\hline
-3-4 & Data Processing \& Feature Engineering & Processed datasets ready \\
-\hline
-5-6 & Model Development & Trained ML models \\
-\hline
-7-8 & Visualization \& Web Interface & Functional web application \\
-\hline
-9-10 & Testing \& Expo Preparation & Complete demonstration ready \\
-\hline
-\end{tabular}
-\caption{Project Timeline and Key Milestones}
-\end{table}
-
 \section{Risk Assessment and Mitigation}
 
 \subsection{Technical Risks}
@@ -337,23 +320,7 @@ The project follows a modular architecture with distinct components:
 
 \section{Innovation and Uniqueness}
 
-\subsection{Novel Aspects}
-\begin{itemize}
-    \item Integration of multiple ML approaches in single platform
-    \item Real-time 3D visualization of protein-ligand interactions
-    \item Educational focus with simplified user interfaces
-    \item Comparative analysis framework for different algorithms
-    \item Interactive demonstration capabilities for science expo
-\end{itemize}
-
-\subsection{Educational Value}
-\begin{itemize}
-    \item Bridges computer science and biology curricula
-    \item Demonstrates practical AI applications in healthcare
-    \item Provides hands-on experience with cutting-edge technologies
-    \item Encourages interest in computational biology careers
-    \item Creates reusable educational resource
-\end{itemize}
+This project offers several innovative aspects that distinguish it from existing solutions: the integration of multiple machine learning approaches within a single unified platform, real-time 3D visualization capabilities for protein-ligand interactions, an educational focus with simplified user interfaces accessible to non-technical users, a comprehensive comparative analysis framework for evaluating different algorithms, and interactive demonstration capabilities specifically designed for science expo presentations. The educational value extends beyond technical implementation by bridging computer science and biology curricula, demonstrating practical AI applications in healthcare, providing hands-on experience with cutting-edge technologies, encouraging student interest in computational biology careers, and creating a reusable educational resource for future learning and research endeavors.
 
 \section{Conclusion}
 
@@ -410,7 +377,7 @@ Through careful planning, modular development, and focus on core functionality, 
 \vspace{1cm}
 
 \begin{tabular}{ll}
-\textbf{Teacher's Name:} & Ashu Wason \\
+\textbf{Teacher's Name:} & Ashu Arora \\
 \textbf{School:} & Lotus Valley International School \\
 \textbf{Signature:} & \rule{5cm}{0.4pt} \\
 \textbf{Date:} & \today

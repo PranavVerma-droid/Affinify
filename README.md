@@ -1,4 +1,4 @@
-# 🧠 Protein-Ligand Binding Affinity Predictor
+# 🧠 Affinify: Protein-Ligand Binding Affinity Predictor
 
 <img src="Logo/logo-banner.jpeg">
 
