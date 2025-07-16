@@ -1,6 +1,7 @@
 import streamlit as st #type: ignore
 import pandas as pd #type: ignore
 import numpy as np
+import json
 from pathlib import Path
 import sys
 import os
@@ -66,14 +67,112 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Session state initialization
-if 'models_trained' not in st.session_state:
-    st.session_state.models_trained = False
-if 'best_model' not in st.session_state:
-    st.session_state.best_model = None
-if 'feature_extractor' not in st.session_state:
-    st.session_state.feature_extractor = None
-if 'training_results' not in st.session_state:
-    st.session_state.training_results = None
+def initialize_session_state():
+    """Initialize session state with proper checks for existing data and models"""
+    if 'models_trained' not in st.session_state:
+        st.session_state.models_trained = False
+    if 'best_model' not in st.session_state:
+        st.session_state.best_model = None
+    if 'feature_extractor' not in st.session_state:
+        st.session_state.feature_extractor = None
+    if 'training_results' not in st.session_state:
+        st.session_state.training_results = None
+    if 'sample_data' not in st.session_state:
+        st.session_state.sample_data = None
+    if 'molecular_features' not in st.session_state:
+        st.session_state.molecular_features = None
+    
+    # Check for existing processed data
+    check_existing_data()
+    
+    # Check for existing trained models
+    check_existing_models()
+
+def check_existing_data():
+    """Check if data has already been processed"""
+    processed_dir = Path("data/processed")
+    
+    # Check for sample data
+    sample_file = processed_dir / "sample_dataset.csv"
+    if sample_file.exists() and st.session_state.sample_data is None:
+        try:
+            st.session_state.sample_data = pd.read_csv(sample_file)
+        except Exception as e:
+            st.error(f"Error loading sample data: {e}")
+    
+    # Check for processed features
+    features_file = processed_dir / "processed_features.csv"
+    if features_file.exists() and st.session_state.molecular_features is None:
+        try:
+            st.session_state.molecular_features = pd.read_csv(features_file)
+        except Exception as e:
+            st.error(f"Error loading molecular features: {e}")
+
+def check_existing_models():
+    """Check if models have already been trained"""
+    models_dir = Path("models")
+    results_dir = Path("results")
+    
+    # Check for trained models
+    model_files = {
+        'RandomForest': models_dir / "randomforest_model.pkl",
+        'XGBoost': models_dir / "xgboost_model.pkl",
+        'NeuralNetwork': models_dir / "neuralnetwork_model.pkl"
+    }
+    
+    # Check for results file
+    metrics_file = results_dir / "model_metrics.json"
+    
+    if metrics_file.exists() and any(f.exists() for f in model_files.values()):
+        try:
+            # Load training results
+            with open(metrics_file, 'r') as f:
+                st.session_state.training_results = json.load(f)
+            
+            # Load best model (assume RandomForest for now, can be improved)
+            rf_model_file = model_files['RandomForest']
+            if rf_model_file.exists():
+                from models.ml_models import RandomForestModel
+                st.session_state.best_model = RandomForestModel()
+                st.session_state.best_model.load_model(rf_model_file)
+                st.session_state.models_trained = True
+                st.session_state.feature_extractor = MolecularFeatureExtractor()
+                
+        except Exception as e:
+            st.error(f"Error loading trained models: {e}")
+
+def check_bindingdb_status():
+    """Check if BindingDB data has been downloaded and processed"""
+    bindingdb_dir = Path("data/raw/bindingdb")
+    processed_dir = Path("data/processed")
+    
+    # Check for raw TSV file
+    possible_files = [
+        "BindingDB_All_202507.tsv",
+        "BindingDB_All_202507_tsv.tsv",
+        "BindingDB_All.tsv"
+    ]
+    
+    raw_file_exists = False
+    for filename in possible_files:
+        if (bindingdb_dir / filename).exists():
+            raw_file_exists = True
+            break
+    
+    if not raw_file_exists:
+        # Check for any TSV file
+        tsv_files = list(bindingdb_dir.glob("*.tsv"))
+        if tsv_files:
+            raw_file_exists = True
+    
+    # Check for processed subset
+    processed_file_exists = (processed_dir / "bindingdb_subset.csv").exists()
+    
+    return {
+        'raw_downloaded': raw_file_exists,
+        'processed': processed_file_exists,
+        'file_size': None
+    }
 
 # Initialize components
 @st.cache_resource
@@ -88,6 +187,9 @@ def initialize_components():
 
 # Main application
 def main():
+    # Initialize session state
+    initialize_session_state()
+    
     # Title and description
     st.markdown('<div class="main-header">🧬 Affinify</div>', unsafe_allow_html=True)
     st.markdown('<div style="text-align: center; font-size: 1.2rem; color: #666;">AI-Powered Protein-Ligand Binding Affinity Predictor</div>', unsafe_allow_html=True)
@@ -102,6 +204,9 @@ def main():
         ["🏠 Home", "📊 Data Overview", "🤖 Model Training", "🔬 Prediction", "📈 Analysis", "ℹ️ About"]
     )
     
+    # Show data and model status in sidebar
+    show_sidebar_status()
+    
     if page == "🏠 Home":
         show_home_page()
     elif page == "📊 Data Overview":
@@ -114,6 +219,53 @@ def main():
         show_analysis_page(visualizer)
     elif page == "ℹ️ About":
         show_about_page()
+
+def show_sidebar_status():
+    """Show current data and model status in sidebar"""
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 📊 Data Status")
+    
+    # Check BindingDB status
+    bindingdb_status = check_bindingdb_status()
+    
+    if bindingdb_status['raw_downloaded']:
+        st.sidebar.success("✅ BindingDB Downloaded")
+    else:
+        st.sidebar.error("❌ BindingDB Not Found")
+    
+    if bindingdb_status['processed']:
+        st.sidebar.success("✅ BindingDB Processed")
+    else:
+        st.sidebar.warning("⚠️ BindingDB Not Processed")
+    
+    # Check sample data
+    if st.session_state.sample_data is not None:
+        st.sidebar.success("✅ Sample Data Available")
+    else:
+        st.sidebar.warning("⚠️ No Sample Data")
+    
+    # Check processed features
+    if st.session_state.molecular_features is not None:
+        st.sidebar.success("✅ Features Extracted")
+    else:
+        st.sidebar.warning("⚠️ No Features Extracted")
+    
+    st.sidebar.markdown("### 🤖 Model Status")
+    
+    # Check model training status
+    if st.session_state.models_trained:
+        st.sidebar.success("✅ Models Trained")
+        if st.session_state.training_results:
+            # Show best model performance
+            best_r2 = max(
+                result['test_metrics']['r2_score'] 
+                for result in st.session_state.training_results.values()
+            )
+            st.sidebar.info(f"Best R²: {best_r2:.3f}")
+    else:
+        st.sidebar.warning("⚠️ Models Not Trained")
+    
+    st.sidebar.markdown("---")
 
 def show_home_page():
     """Display the home page"""
@@ -195,25 +347,75 @@ def show_data_overview(data_collector, feature_extractor, visualizer):
     
     with col1:
         st.markdown("### Available Datasets")
-        dataset_info = data_collector.get_dataset_info()
         
-        for name, info in dataset_info.items():
-            with st.expander(f"{name.upper()} Dataset"):
-                st.write(f"**Description**: {info['description']}")
-                st.write(f"**Downloaded**: {'✅' if info['downloaded'] else '❌'}")
-                if info['downloaded']:
-                    st.write(f"**Size**: {info['file_size'] / (1024*1024):.1f} MB")
+        # BindingDB status
+        bindingdb_status = check_bindingdb_status()
+        with st.expander("BindingDB Dataset"):
+            st.write("**Description**: Comprehensive binding affinity database")
+            st.write(f"**Downloaded**: {'✅' if bindingdb_status['raw_downloaded'] else '❌'}")
+            st.write(f"**Processed**: {'✅' if bindingdb_status['processed'] else '❌'}")
+            
+            if bindingdb_status['raw_downloaded']:
+                if st.button("Process BindingDB Data"):
+                    with st.spinner("Processing BindingDB data..."):
+                        try:
+                            # Process BindingDB data
+                            bindingdb_dir = Path("data/raw/bindingdb")
+                            tsv_files = list(bindingdb_dir.glob("*.tsv"))
+                            
+                            if tsv_files:
+                                # Process the first TSV file found
+                                import subprocess
+                                result = subprocess.run(
+                                    ["python", "scripts/download_data.py", "--skip-download"],
+                                    capture_output=True,
+                                    text=True
+                                )
+                                if result.returncode == 0:
+                                    st.success("BindingDB data processed successfully!")
+                                    st.experimental_rerun()
+                                else:
+                                    st.error("Error processing BindingDB data")
+                        except Exception as e:
+                            st.error(f"Error processing BindingDB data: {e}")
+            else:
+                st.info("Download BindingDB data first using the download script")
     
     with col2:
         st.markdown("### Sample Data")
-        if st.button("Generate Sample Dataset"):
-            with st.spinner("Generating sample data..."):
-                sample_df = data_collector.create_sample_dataset(1000)
-                st.session_state.sample_data = sample_df
-                st.success("Sample dataset generated!")
+        
+        # Check if sample data already exists
+        if st.session_state.sample_data is not None:
+            st.success(f"Sample data available: {len(st.session_state.sample_data)} records")
+            
+            if st.button("Regenerate Sample Dataset"):
+                with st.spinner("Regenerating sample data..."):
+                    sample_df = data_collector.create_sample_dataset(5000)
+                    st.session_state.sample_data = sample_df
+                    
+                    # Save to file
+                    processed_dir = Path("data/processed")
+                    processed_dir.mkdir(exist_ok=True)
+                    sample_file = processed_dir / "sample_dataset.csv"
+                    sample_df.to_csv(sample_file, index=False)
+                    
+                    st.success("Sample dataset regenerated!")
+        else:
+            if st.button("Generate Sample Dataset"):
+                with st.spinner("Generating sample data..."):
+                    sample_df = data_collector.create_sample_dataset(5000)
+                    st.session_state.sample_data = sample_df
+                    
+                    # Save to file
+                    processed_dir = Path("data/processed")
+                    processed_dir.mkdir(exist_ok=True)
+                    sample_file = processed_dir / "sample_dataset.csv"
+                    sample_df.to_csv(sample_file, index=False)
+                    
+                    st.success("Sample dataset generated!")
     
     # Display sample data
-    if 'sample_data' in st.session_state:
+    if st.session_state.sample_data is not None:
         st.subheader("Sample Dataset")
         st.dataframe(st.session_state.sample_data.head(10))
         
@@ -231,19 +433,67 @@ def show_data_overview(data_collector, feature_extractor, visualizer):
             )
             st.pyplot(fig)
         
-        # Molecular properties
-        if st.button("Extract Molecular Features"):
-            with st.spinner("Extracting molecular features..."):
-                features, _ = feature_extractor.prepare_features(st.session_state.sample_data)
-                st.session_state.molecular_features = features
-                
-                # Plot molecular properties
-                fig = visualizer.create_molecular_properties_plot(features)
-                st.pyplot(fig)
+        # Molecular features
+        if st.session_state.molecular_features is None:
+            if st.button("Extract Molecular Features"):
+                with st.spinner("Extracting molecular features..."):
+                    features, target = feature_extractor.prepare_features(st.session_state.sample_data)
+                    st.session_state.molecular_features = features
+                    
+                    # Save features to file
+                    processed_dir = Path("data/processed")
+                    processed_dir.mkdir(exist_ok=True)
+                    features_file = processed_dir / "processed_features.csv"
+                    target_file = processed_dir / "target_values.csv"
+                    
+                    features.to_csv(features_file, index=False)
+                    target.to_csv(target_file, index=False)
+                    
+                    # Plot molecular properties
+                    fig = visualizer.create_molecular_properties_plot(features)
+                    st.pyplot(fig)
+        else:
+            st.success(f"Molecular features available: {len(st.session_state.molecular_features)} samples, {len(st.session_state.molecular_features.columns)} features")
+            
+            # Plot molecular properties
+            fig = visualizer.create_molecular_properties_plot(st.session_state.molecular_features)
+            st.pyplot(fig)
 
 def show_model_training(data_collector, feature_extractor):
     """Display model training page"""
     st.markdown('<div class="sub-header">🤖 Model Training</div>', unsafe_allow_html=True)
+    
+    # Check if models are already trained
+    if st.session_state.models_trained:
+        st.success("✅ Models are already trained!")
+        
+        # Show training results
+        st.subheader("Training Results")
+        
+        if st.session_state.training_results:
+            for model_name, result in st.session_state.training_results.items():
+                with st.expander(f"{model_name} Results"):
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        st.write("**Test Metrics:**")
+                        for metric, value in result['test_metrics'].items():
+                            st.write(f"- {metric}: {value:.4f}")
+                    
+                    with col2:
+                        if 'train_metrics' in result:
+                            st.write("**Train Metrics:**")
+                            for metric, value in result['train_metrics'].items():
+                                st.write(f"- {metric}: {value:.4f}")
+        
+        # Allow retraining
+        if st.button("🔄 Retrain Models", type="secondary"):
+            st.session_state.models_trained = False
+            st.session_state.training_results = None
+            st.session_state.best_model = None
+            st.rerun()
+        
+        return
     
     # Training configuration
     st.subheader("Training Configuration")
@@ -282,7 +532,15 @@ def show_model_training(data_collector, feature_extractor):
                 if use_sample_data:
                     df = data_collector.create_sample_dataset(sample_size)
                 else:
-                    df = data_collector.load_bindingdb_data(sample_size)
+                    # Try to load BindingDB data
+                    processed_dir = Path("data/processed")
+                    bindingdb_file = processed_dir / "bindingdb_subset.csv"
+                    
+                    if bindingdb_file.exists():
+                        df = pd.read_csv(bindingdb_file)
+                    else:
+                        st.error("BindingDB data not found. Please process BindingDB data first or use sample data.")
+                        return
                 
                 if df.empty:
                     st.error("No data available for training.")
@@ -304,6 +562,22 @@ def show_model_training(data_collector, feature_extractor):
                 st.session_state.best_model = trainer.get_best_model()[1]
                 st.session_state.feature_extractor = feature_extractor
                 st.session_state.models_trained = True
+                
+                # Save results to files (to sync with backend)
+                results_dir = Path("results")
+                results_dir.mkdir(exist_ok=True)
+                
+                # Save performance metrics
+                metrics_summary = {}
+                for model_name, result in results.items():
+                    metrics_summary[model_name] = {
+                        'train_metrics': result.get('train_metrics', {}),
+                        'test_metrics': result['test_metrics']
+                    }
+                
+                metrics_file = results_dir / "model_metrics.json"
+                with open(metrics_file, 'w') as f:
+                    json.dump(metrics_summary, f, indent=2)
                 
                 st.success("Models trained successfully!")
                 
@@ -327,6 +601,7 @@ def show_model_training(data_collector, feature_extractor):
                 
             except Exception as e:
                 st.error(f"Training failed: {str(e)}")
+                st.write("Stack trace:", str(e))
 
 def show_prediction_page():
     """Display prediction page"""
