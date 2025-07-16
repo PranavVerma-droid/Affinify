@@ -4,13 +4,7 @@
 
 ### Installation
 
-**Method 1: Automated Setup (Recommended)**
-```bash
-cd Code
-python setup.py
-```
-
-**Method 2: Manual Installation**
+**Method 1: Manual Installation**
 ```bash
 cd Code
 conda create -n affinity_env python=3.9
@@ -19,12 +13,12 @@ pip install -r requirements.txt
 # Note: Some packages may fail - that's okay, fallbacks are available
 ```
 
-**Method 3: Core Dependencies Only**
+**Method 2: Core Dependencies Only**
 ```bash
 pip install scikit-learn pandas numpy matplotlib streamlit plotly
 ```
 
-**Method 4: Step-by-Step Installation**
+**Method 3: Step-by-Step Installation**
 ```bash
 # Install core dependencies
 pip install scikit-learn pandas numpy scipy matplotlib seaborn plotly streamlit requests beautifulsoup4 pytest jupyter ipywidgets joblib

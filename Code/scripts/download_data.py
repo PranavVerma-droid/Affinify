@@ -21,16 +21,24 @@ from data_processing.feature_extractor import MolecularFeatureExtractor #type: i
  
 # Configure logging
 os.makedirs('logs', exist_ok=True)
+
+# Clear any existing handlers
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/data_download.log'),
-        logging.StreamHandler()
+        logging.FileHandler('logs/data_download.log', mode='w'),
+        logging.StreamHandler(sys.stdout)
     ]
 )
 
 logger = logging.getLogger(__name__)
+
+# Test logging
+logger.info("Data download script started")
 
 def print_banner():
     """Print welcome banner"""
@@ -381,10 +389,18 @@ def main():
         print("2. Run: streamlit run app/main.py")
         print("\n✅ Data download and processing completed successfully!")
         
+        # Flush all handlers to ensure logs are written
+        for handler in logging.root.handlers:
+            handler.flush()
+        
     except Exception as e:
         logger.error(f"Data processing failed: {str(e)}")
         print(f"❌ Error: {str(e)}")
         print("Check logs/data_download.log for details")
+        
+        # Flush all handlers to ensure logs are written
+        for handler in logging.root.handlers:
+            handler.flush()
         raise
 
 if __name__ == "__main__":

@@ -19,16 +19,24 @@ from models.ml_models import ModelTrainer #type: ignore
 
 # Configure logging
 os.makedirs('logs', exist_ok=True)
+
+# Clear any existing handlers
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('logs/model_training.log'),
-        logging.StreamHandler()
+        logging.FileHandler('logs/model_training.log', mode='w'),
+        logging.StreamHandler(sys.stdout)
     ]
 )
 
 logger = logging.getLogger(__name__)
+
+# Test logging
+logger.info("Model training script started")
 
 def load_data():
     """Load and prepare training data"""
@@ -124,8 +132,16 @@ def main():
             test_rmse = result['test_metrics']['rmse']
             logger.info(f"{model_name}: R² = {test_r2:.4f}, RMSE = {test_rmse:.4f}")
         
+        # Flush all handlers to ensure logs are written
+        for handler in logging.root.handlers:
+            handler.flush()
+        
     except Exception as e:
         logger.error(f"Training pipeline failed: {str(e)}")
+        
+        # Flush all handlers to ensure logs are written
+        for handler in logging.root.handlers:
+            handler.flush()
         raise
 
 if __name__ == "__main__":
