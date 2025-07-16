@@ -44,3 +44,7 @@
 .bak 
 .mtc
 build/
+data/
+models/
+logs/
+demo_prediction_plot.png

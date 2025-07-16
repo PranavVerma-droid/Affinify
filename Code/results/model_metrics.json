@@ -1,0 +1,39 @@
+{
+  "RandomForest": {
+    "train_metrics": {
+      "r2_score": 0.004554700864126016,
+      "rmse": 0.42547828576955177
+    },
+    "test_metrics": {
+      "r2_score": -0.00012896088988334498,
+      "rmse": 0.4541948574719141
+    }
+  },
+  "XGBoost": {
+    "train_metrics": {
+      "r2_score": 0.004503173583638942,
+      "rmse": 0.4254892976530217
+    },
+    "test_metrics": {
+      "r2_score": -0.0022530751870339927,
+      "rmse": 0.4546769203464959
+    }
+  },
+  "NeuralNetwork": {
+    "train_metrics": {
+      "r2_score": -0.013765377135122936,
+      "rmse": 0.4293756661649602
+    },
+    "test_metrics": {
+      "r2_score": -0.013591971834511218,
+      "rmse": 0.45724165922115967
+    }
+  },
+  "Ensemble": {
+    "train_metrics": {},
+    "test_metrics": {
+      "r2_score": -0.008146164669639244,
+      "rmse": 0.4560116753562119
+    }
+  }
+}

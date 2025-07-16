@@ -1,0 +1,106 @@
+{
+  "project": {
+    "name": "Affinify",
+    "version": "1.0.0",
+    "description": "AI-Powered Protein-Ligand Binding Affinity Predictor",
+    "authors": ["Pranav Verma", "Ekaksh Goyal"]
+  },
+  "data": {
+    "sample_size": 5000,
+    "test_size": 0.2,
+    "random_state": 42,
+    "min_binding_affinity": 0.1,
+    "max_binding_affinity": 100000,
+    "data_sources": {
+      "bindingdb": {
+        "url": "https://www.bindingdb.org/rwd/bind/downloads/BindingDB_All_202507_tsv.zip",
+        "description": "Comprehensive binding database",
+        "enabled": true
+      },
+      "sample": {
+        "description": "Synthetic Sample Dataset",
+        "enabled": true
+      }
+    }
+  },
+  "models": {
+    "random_forest": {
+      "n_estimators": 100,
+      "max_depth": null,
+      "min_samples_split": 2,
+      "min_samples_leaf": 1,
+      "random_state": 42,
+      "enabled": true
+    },
+    "xgboost": {
+      "n_estimators": 100,
+      "max_depth": 6,
+      "learning_rate": 0.1,
+      "subsample": 0.8,
+      "colsample_bytree": 0.8,
+      "random_state": 42,
+      "enabled": true
+    },
+    "neural_network": {
+      "hidden_layers": [128, 64, 32],
+      "dropout_rate": 0.2,
+      "learning_rate": 0.001,
+      "batch_size": 32,
+      "epochs": 100,
+      "random_state": 42,
+      "enabled": true
+    }
+  },
+  "features": {
+    "molecular_descriptors": {
+      "basic_properties": true,
+      "topological_descriptors": true,
+      "electronic_properties": true,
+      "geometric_features": true
+    },
+    "protein_features": {
+      "sequence_properties": true,
+      "structural_features": true,
+      "binding_site_features": true
+    },
+    "interaction_features": {
+      "molecular_protein_interactions": true,
+      "binding_mode_features": true
+    }
+  },
+  "visualization": {
+    "plot_style": "default",
+    "figure_size": [10, 8],
+    "dpi": 300,
+    "save_format": "png",
+    "molecular_viewer": {
+      "width": 400,
+      "height": 400,
+      "style": "stick"
+    }
+  },
+  "performance": {
+    "target_r2": 0.7,
+    "target_rmse": 1.0,
+    "max_prediction_time": 5.0,
+    "cross_validation_folds": 5
+  },
+  "paths": {
+    "data_dir": "data",
+    "models_dir": "models",
+    "results_dir": "results",
+    "logs_dir": "logs",
+    "config_dir": "config"
+  },
+  "logging": {
+    "level": "INFO",
+    "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    "file": "logs/affinify.log"
+  },
+  "streamlit": {
+    "page_title": "Affinify - AI-Powered Protein-Ligand Binding Affinity Predictor",
+    "page_icon": "🧬",
+    "layout": "wide",
+    "sidebar_state": "expanded"
+  }
+}
