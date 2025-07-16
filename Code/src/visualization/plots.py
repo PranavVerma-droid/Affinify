@@ -1,20 +1,20 @@
-import pandas as pd
+import pandas as pd #type: ignore
 import numpy as np
 from typing import List, Dict, Optional, Tuple, Any
 import logging
 
 try:
-    import plotly.graph_objects as go
-    import plotly.express as px
-    from plotly.subplots import make_subplots
+    import plotly.graph_objects as go #type: ignore
+    import plotly.express as px #type: ignore
+    from plotly.subplots import make_subplots #type: ignore
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
     logging.warning("Plotly not available")
 
 try:
-    import matplotlib.pyplot as plt
-    import seaborn as sns
+    import matplotlib.pyplot as plt #type: ignore
+    import seaborn as sns #type: ignore
     MATPLOTLIB_AVAILABLE = True
 except ImportError:
     MATPLOTLIB_AVAILABLE = False
@@ -351,7 +351,7 @@ class PlotGenerator:
         if not MATPLOTLIB_AVAILABLE:
             return None
         
-        from pandas.plotting import scatter_matrix
+        from pandas.plotting import scatter_matrix #type: ignore
         
         plot_df = df[properties + ['binding_affinity_nm']].copy()
         fig = plt.figure(figsize=(12, 10))

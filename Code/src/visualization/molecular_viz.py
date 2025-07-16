@@ -1,7 +1,7 @@
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import pandas as pd #type: ignore
+import matplotlib.pyplot as plt #type: ignore
+import seaborn as sns #type: ignore
 from typing import Dict, List, Optional, Tuple, Any
 import logging
 import warnings
@@ -37,9 +37,9 @@ class MolecularVisualizer:
             HTML string for 3D visualization
         """
         try:
-            import py3Dmol
-            from rdkit import Chem
-            from rdkit.Chem import AllChem
+            import py3Dmol #type: ignore
+            from rdkit import Chem #type: ignore
+            from rdkit.Chem import AllChem #type: ignore
             
             # Create molecule from SMILES
             mol = Chem.MolFromSmiles(smiles)
@@ -72,8 +72,8 @@ class MolecularVisualizer:
     def _create_simple_molecule_plot(self, smiles: str, size: Tuple[int, int]) -> str:
         """Create a simple 2D molecular representation"""
         try:
-            from rdkit import Chem
-            from rdkit.Chem import Draw
+            from rdkit import Chem #type: ignore
+            from rdkit.Chem import Draw #type: ignore
             import base64
             from io import BytesIO
             
@@ -185,7 +185,7 @@ class MolecularVisualizer:
         ax.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2, label='Perfect Prediction')
         
         # Calculate R²
-        from sklearn.metrics import r2_score
+        from sklearn.metrics import r2_score #type: ignore
         r2 = r2_score(y_true, y_pred)
         
         ax.set_xlabel('Actual Binding Affinity')
@@ -397,8 +397,8 @@ class InteractivePlotter:
     def __init__(self):
         self.plotly_available = True
         try:
-            import plotly.graph_objects as go
-            import plotly.express as px
+            import plotly.graph_objects as go #type: ignore
+            import plotly.express as px #type: ignore
             self.go = go
             self.px = px
         except ImportError:

@@ -1,13 +1,13 @@
 import numpy as np
-import pandas as pd
+import pandas as pd #type: ignore
 from typing import Dict, List, Optional, Tuple
 import logging
 import os
 
 try:
-    import tensorflow as tf
-    from tensorflow import keras
-    from tensorflow.keras import layers
+    import tensorflow as tf #type: ignore
+    from tensorflow import keras #type: ignore
+    from tensorflow.keras import layers #type: ignore
     TENSORFLOW_AVAILABLE = True
 except ImportError:
     TENSORFLOW_AVAILABLE = False

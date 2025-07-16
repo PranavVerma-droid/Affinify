@@ -1,15 +1,15 @@
-import pandas as pd
+import pandas as pd #type: ignore
 import numpy as np
 from typing import Dict, List, Optional, Tuple
 import logging
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.svm import SVR
-from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
-import joblib
+from sklearn.ensemble import RandomForestRegressor #type: ignore
+from sklearn.svm import SVR #type: ignore
+from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error #type: ignore
+import joblib #type: ignore
 import os
 
 try:
-    import xgboost as xgb
+    import xgboost as xgb #type: ignore
     XGBOOST_AVAILABLE = True
 except ImportError:
     XGBOOST_AVAILABLE = False
