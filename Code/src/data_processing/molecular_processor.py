@@ -1,4 +1,4 @@
-import pandas as pd
+import pandas as pd #type: ignore
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 import logging
@@ -18,8 +18,8 @@ class LigandProcessor:
             return self.descriptors_cache[smiles]
         
         try:
-            from rdkit import Chem
-            from rdkit.Chem import Descriptors, AllChem
+            from rdkit import Chem #type: ignore
+            from rdkit.Chem import Descriptors, AllChem #type: ignore
             
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
@@ -96,8 +96,8 @@ class LigandProcessor:
     def generate_fingerprints(self, smiles: str, fp_type: str = 'morgan') -> np.ndarray:
         """Generate molecular fingerprints."""
         try:
-            from rdkit import Chem
-            from rdkit.Chem import AllChem
+            from rdkit import Chem #type: ignore
+            from rdkit.Chem import AllChem #type: ignore
             
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
@@ -106,7 +106,7 @@ class LigandProcessor:
             if fp_type.lower() == 'morgan':
                 fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048)
             elif fp_type.lower() == 'maccs':
-                from rdkit.Chem import MACCSkeys
+                from rdkit.Chem import MACCSkeys #type: ignore
                 fp = MACCSkeys.GenMACCSKeys(mol)
             else:
                 fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2, nBits=2048)
@@ -123,8 +123,8 @@ class LigandProcessor:
     def calculate_3d_coordinates(self, smiles: str) -> Optional[np.ndarray]:
         """Calculate 3D coordinates for the molecule."""
         try:
-            from rdkit import Chem
-            from rdkit.Chem import AllChem
+            from rdkit import Chem #type: ignore
+            from rdkit.Chem import AllChem #type: ignore
             
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
@@ -170,7 +170,7 @@ class LigandProcessor:
     def validate_smiles(self, smiles: str) -> bool:
         """Validate SMILES string."""
         try:
-            from rdkit import Chem
+            from rdkit import Chem #type: ignore
             mol = Chem.MolFromSmiles(smiles)
             return mol is not None
         except ImportError:
@@ -215,7 +215,7 @@ class ProteinProcessor:
             return self.structure_cache[pdb_file]
         
         try:
-            from Bio.PDB import PDBParser
+            from Bio.PDB import PDBParser #type: ignore
             
             parser = PDBParser(QUIET=True)
             structure = parser.get_structure('protein', pdb_file)
@@ -295,7 +295,7 @@ class ProteinProcessor:
     def identify_binding_pocket(self, pdb_file: str, ligand_coords: Optional[np.ndarray] = None) -> List[Dict]:
         """Identify binding pocket residues."""
         try:
-            from Bio.PDB import PDBParser, NeighborSearch
+            from Bio.PDB import PDBParser, NeighborSearch #type: ignore
             
             parser = PDBParser(QUIET=True)
             structure = parser.get_structure('protein', pdb_file)

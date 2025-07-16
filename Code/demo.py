@@ -6,7 +6,7 @@ Demonstrates core functionality with minimal dependencies
 
 import os
 import sys
-import pandas as pd
+import pandas as pd #type: ignore
 import numpy as np
 from pathlib import Path
 
@@ -45,8 +45,8 @@ def demo_data_processing():
     print("=" * 40)
     
     try:
-        from data_processing.data_collector import DataCollector
-        from data_processing.feature_extractor import MolecularFeatureExtractor
+        from data_processing.data_collector import DataCollector #type: ignore
+        from data_processing.feature_extractor import MolecularFeatureExtractor #type: ignore
         
         # Create sample data
         print("Creating sample dataset...")
@@ -84,9 +84,9 @@ def demo_model_training(features, target):
         return None
     
     try:
-        from models.ml_models import RandomForestModel
-        from sklearn.model_selection import train_test_split
-        from sklearn.metrics import r2_score, mean_squared_error
+        from models.ml_models import RandomForestModel #type: ignore
+        from sklearn.model_selection import train_test_split #type: ignore
+        from sklearn.metrics import r2_score, mean_squared_error #type: ignore
         
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(
@@ -165,7 +165,7 @@ def demo_visualization():
     print("=" * 40)
     
     try:
-        import matplotlib.pyplot as plt
+        import matplotlib.pyplot as plt #type: ignore
         
         # Create sample data
         np.random.seed(42)

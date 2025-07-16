@@ -7,7 +7,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
-import pandas as pd
+import pandas as pd #type: ignore
 import numpy as np
 
 def setup_logging(log_level: str = 'INFO', log_file: Optional[str] = None) -> logging.Logger:
@@ -111,7 +111,7 @@ def validate_smiles(smiles: str) -> bool:
         True if valid, False otherwise
     """
     try:
-        from rdkit import Chem
+        from rdkit import Chem #type: ignore
         mol = Chem.MolFromSmiles(smiles)
         return mol is not None
     except ImportError:
@@ -171,8 +171,8 @@ def calculate_molecular_properties(smiles: str) -> Dict[str, float]:
         Dictionary of molecular properties
     """
     try:
-        from rdkit import Chem
-        from rdkit.Chem import Descriptors
+        from rdkit import Chem #type: ignore
+        from rdkit.Chem import Descriptors #type: ignore
         
         mol = Chem.MolFromSmiles(smiles)
         if mol is None:

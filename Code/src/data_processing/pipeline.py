@@ -1,9 +1,9 @@
-import pandas as pd
+import pandas as pd #type: ignore
 import numpy as np
 from typing import List, Dict, Optional, Tuple
 import logging
-from sklearn.preprocessing import StandardScaler, LabelEncoder
-from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, LabelEncoder #type: ignore
+from sklearn.model_selection import train_test_split #type: ignore
 import os
 
 logger = logging.getLogger(__name__)
@@ -185,7 +185,7 @@ class DataPipeline:
     
     def save_pipeline(self, save_path: str):
         """Save the preprocessing pipeline."""
-        import joblib
+        import joblib #type: ignore
         
         pipeline_data = {
             'scaler': self.scaler,
@@ -199,7 +199,7 @@ class DataPipeline:
     
     def load_pipeline(self, load_path: str):
         """Load a preprocessing pipeline."""
-        import joblib
+        import joblib #type: ignore
         
         pipeline_data = joblib.load(load_path)
         self.scaler = pipeline_data['scaler']
@@ -223,7 +223,7 @@ class DataPipeline:
         # Check SMILES validity
         if 'ligand_smiles' in df.columns:
             try:
-                from rdkit import Chem
+                from rdkit import Chem #type: ignore
                 invalid_smiles = df['ligand_smiles'].apply(
                     lambda x: Chem.MolFromSmiles(x) is None if pd.notna(x) else True
                 ).sum()

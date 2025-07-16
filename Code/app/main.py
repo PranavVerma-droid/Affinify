@@ -1,5 +1,5 @@
-import streamlit as st
-import pandas as pd
+import streamlit as st #type: ignore
+import pandas as pd #type: ignore
 import numpy as np
 from pathlib import Path
 import sys
@@ -10,10 +10,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 # Import custom modules
 try:
-    from data_processing.data_collector import DataCollector
-    from data_processing.feature_extractor import MolecularFeatureExtractor
-    from models.ml_models import ModelTrainer, RandomForestModel
-    from visualization.molecular_viz import MolecularVisualizer, InteractivePlotter
+    from data_processing.data_collector import DataCollector #type: ignore
+    from data_processing.feature_extractor import MolecularFeatureExtractor #type: ignore
+    from models.ml_models import ModelTrainer, RandomForestModel #type: ignore
+    from visualization.molecular_viz import MolecularVisualizer, InteractivePlotter #type: ignore
 except ImportError as e:
     st.error(f"Error importing modules: {e}")
     st.stop()

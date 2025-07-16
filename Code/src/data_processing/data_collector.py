@@ -1,5 +1,5 @@
 import os
-import pandas as pd
+import pandas as pd #type: ignore
 import requests
 from urllib.parse import urljoin
 import logging

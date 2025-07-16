@@ -45,6 +45,7 @@
 .mtc
 build/
 data/
-models/
+Code/models/
 logs/
 demo_prediction_plot.png
+__pycache__/

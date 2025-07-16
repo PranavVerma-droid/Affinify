@@ -1,4 +1,4 @@
-import pandas as pd
+import pandas as pd #type: ignore
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Union
 import logging
@@ -30,8 +30,8 @@ class MolecularFeatureExtractor:
             pd.DataFrame: Molecular descriptors
         """
         try:
-            from rdkit import Chem
-            from rdkit.Chem import Descriptors, Crippen, Lipinski, QED
+            from rdkit import Chem #type: ignore
+            from rdkit.Chem import Descriptors, Crippen, Lipinski, QED #type: ignore
             
             features = []
             
@@ -141,7 +141,7 @@ class MolecularFeatureExtractor:
     
     def _count_lipinski_violations(self, mol) -> int:
         """Count Lipinski rule violations"""
-        from rdkit.Chem import Descriptors, Lipinski
+        from rdkit.Chem import Descriptors, Lipinski #type: ignore
         
         violations = 0
         if Descriptors.MolWt(mol) > 500:

@@ -7,7 +7,7 @@ Interactive script that guides user through manual download and then processes d
 import os
 import sys
 import logging
-import pandas as pd
+import pandas as pd #type: ignore
 from pathlib import Path
 import json
 import time
@@ -16,9 +16,9 @@ import zipfile
 # Add src directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from data_processing.data_collector import DataCollector
-from data_processing.feature_extractor import MolecularFeatureExtractor
-
+from data_processing.data_collector import DataCollector #type: ignore
+from data_processing.feature_extractor import MolecularFeatureExtractor #type: ignore
+ 
 # Configure logging
 os.makedirs('logs', exist_ok=True)
 logging.basicConfig(

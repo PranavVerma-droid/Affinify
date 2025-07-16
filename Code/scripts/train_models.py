@@ -6,16 +6,16 @@ Model Training Script for Affinify Project
 import os
 import sys
 import logging
-import pandas as pd
+import pandas as pd #type: ignore
 from pathlib import Path
 import json
 
 # Add src directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from data_processing.data_collector import DataCollector
-from data_processing.feature_extractor import MolecularFeatureExtractor
-from models.ml_models import ModelTrainer
+from data_processing.data_collector import DataCollector #type: ignore
+from data_processing.feature_extractor import MolecularFeatureExtractor #type: ignore
+from models.ml_models import ModelTrainer #type: ignore
 
 # Configure logging
 os.makedirs('logs', exist_ok=True)
