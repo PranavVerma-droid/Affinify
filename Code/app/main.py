@@ -24,6 +24,7 @@ try:
     from data_processing.feature_extractor import MolecularFeatureExtractor
     from models.ml_models import ModelTrainer
     from visualization.molecular_viz import MolecularVisualizer
+    from utils.ollama_chat import create_ollama_chat
 except ImportError as e:
     st.error(f"Error importing modules: {e}")
     st.stop()
@@ -93,6 +94,9 @@ class AffinifyApp:
         self.data_dir = self.project_root / "data"
         self.models_dir = self.project_root / "models"
         self.results_dir = self.project_root / "results"
+        
+        # Initialize Ollama chat
+        self.chat = create_ollama_chat()
         
         # Initialize session state
         self.init_session_state()
@@ -229,7 +233,7 @@ class AffinifyApp:
         # Navigation
         page = st.sidebar.selectbox(
             "Navigate",
-            ["🏠 Home", "📊 Data Pipeline", "🔬 Predictions", "📈 Analysis", "⚙️ Settings", "ℹ️ About"]
+            ["🏠 Home", "📊 Data Pipeline", "🔬 Predictions", "📈 Analysis", "🤖 AI Assistant", "⚙️ Settings", "ℹ️ About"]
         )
         
         st.sidebar.markdown("---")
@@ -1086,6 +1090,183 @@ class AffinifyApp:
         data source licenses for BindingDB and other datasets used.
         """)
     
+    def show_ai_assistant_page(self):
+        """Show AI Assistant page with ChatGPT-like interface"""
+        # Add ChatGPT-like styling
+        st.markdown("""
+        <style>
+        .chat-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .user-message {
+            display: flex;
+            justify-content: flex-end;
+            margin: 1rem 0;
+        }
+        
+        .user-bubble {
+            background: #10a37f;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 70%;
+            word-wrap: break-word;
+            font-size: 14px;
+        }
+        
+        .assistant-message {
+            display: flex;
+            justify-content: flex-start;
+            margin: 1rem 0;
+        }
+        
+        .assistant-bubble {
+            background: #f7f7f8;
+            color: #374151;
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 70%;
+            word-wrap: break-word;
+            font-size: 14px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .stTextInput > div > div > input {
+            border-radius: 25px;
+            border: 1px solid #d1d5db;
+            padding: 12px 16px;
+            background-color: white;
+            color: #374151 !important;
+        }
+        
+        .stTextInput > div > div > input::placeholder {
+            color: #9ca3af !important;
+        }
+        
+        .stForm {
+            background: transparent;
+            border: none;
+        }
+        
+        .main-container {
+            background-color: #ffffff;
+            min-height: 100vh;
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        # Check if Ollama is enabled
+        if not self.chat.enabled:
+            st.error("🔴 AI Assistant is disabled")
+            st.markdown("""
+            **To enable the AI Assistant:**
+            1. Install Ollama from https://ollama.ai
+            2. Start Ollama: `ollama serve`
+            3. Run setup: `python setup_ollama.py`
+            4. Restart this application
+            """)
+            return
+        
+        # Check if Ollama is available
+        if not st.session_state.ollama_available:
+            st.error("🔴 AI Assistant not available")
+            col1, col2 = st.columns([1, 1])
+            
+            with col1:
+                st.markdown("""
+                **Troubleshooting:**
+                - Ensure Ollama is running: `ollama serve`
+                - Check if model is installed: `ollama list`
+                - Install model: `ollama pull llama3.2:3b`
+                """)
+            
+            with col2:
+                if st.button("🔄 Retry Connection", type="primary"):
+                    st.session_state.ollama_available = self.chat.check_ollama_availability()
+                    st.rerun()
+            return
+        
+        # Main chat container
+        st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+        
+        # Display chat history
+        for message in st.session_state.chat_messages:
+            if message['role'] == 'user':
+                st.markdown(f"""
+                <div class="user-message">
+                    <div class="user-bubble">
+                        {message['content']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="assistant-message">
+                    <div class="assistant-bubble">
+                        {message['content']}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Close chat container
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        
+        # Create input form
+        with st.form(key='chat_form', clear_on_submit=True):
+            user_input = st.text_input(
+                "",
+                placeholder="Message Affinify Assistant...",
+                key="chat_input_field"
+            )
+            
+            send_button = st.form_submit_button("Send", type="primary", use_container_width=True)
+        
+        # Handle message sending
+        if send_button and user_input.strip():
+            # Add user message to history FIRST
+            self.chat.add_message('user', user_input)
+            
+            # Rerun to show the user message immediately
+            st.rerun()
+        
+        # Check if we need to get a response (if last message is from user and no response yet)
+        if (st.session_state.chat_messages and 
+            st.session_state.chat_messages[-1]['role'] == 'user' and
+            not st.session_state.get('getting_response', False)):
+            
+            # Set flag to prevent multiple responses
+            st.session_state.getting_response = True
+            
+            # Get the last user message
+            last_user_message = st.session_state.chat_messages[-1]['content']
+            
+            # Show thinking indicator and get response
+            with st.spinner("Assistant is thinking..."):
+                response = self.chat.send_message(last_user_message)
+                
+                if response:
+                    self.chat.add_message('assistant', response)
+                else:
+                    error_msg = self.chat.config.get('error_message', 'Sorry, I encountered an error.')
+                    self.chat.add_message('assistant', error_msg)
+            
+            # Clear the flag
+            st.session_state.getting_response = False
+            
+            # Rerun to show the assistant response
+            st.rerun()
+        
+        col1, col2, col3 = st.columns([1, 1, 1])
+        
+        with col2:
+            if st.button("🗑️ Clear Chat", use_container_width=True):
+                self.chat.clear_chat()
+                st.rerun()
+    
     def run(self):
         """Run the main application"""
         self.show_header()
@@ -1102,6 +1283,8 @@ class AffinifyApp:
             self.show_predictions_page()
         elif page == "📈 Analysis":
             self.show_analysis_page()
+        elif page == "🤖 AI Assistant":
+            self.show_ai_assistant_page()
         elif page == "⚙️ Settings":
             self.show_settings_page()
         elif page == "ℹ️ About":

@@ -102,5 +102,17 @@
     "page_icon": "🧬",
     "layout": "wide",
     "sidebar_state": "expanded"
+  },
+  "ollama": {
+    "enabled": true,
+    "host": "http://localhost:11434",
+    "model": "medllama2:latest",
+    "temperature": 0.7,
+    "max_tokens": 1000,
+    "system_prompt": "You are Affinify Assistant, an AI helper for the Affinify protein-ligand binding affinity prediction platform. You help users with questions about molecular modeling, machine learning, data processing, and using the Affinify system. Be helpful, concise, and scientifically accurate.",
+    "chat_title": "🤖 Affinify Assistant",
+    "welcome_message": "Hello! I'm your Affinify Assistant. I can help you with questions about protein-ligand binding, machine learning models, data processing, and using this platform. What would you like to know?",
+    "error_message": "I'm having trouble connecting to the AI model. Please check if Ollama is running and try again.",
+    "timeout": 30
   }
 }
