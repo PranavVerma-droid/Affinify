@@ -49,6 +49,17 @@ st.markdown("""
         border-radius: 0.5rem;
         border-left: 4px solid #1f77b4;
     }
+    .metric-box h3 {
+        color: #1f77b4;
+        margin: 0 0 0.5rem 0;
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+    .metric-box p {
+        color: #333333;
+        margin: 0;
+        font-size: 0.9rem;
+    }
     .prediction-box {
         background-color: #e8f5e8;
         padding: 1.5rem;
