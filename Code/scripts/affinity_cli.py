@@ -303,10 +303,9 @@ class AffinifyCLI:
         return features, target
     
     def create_simple_features(self, df: pd.DataFrame) -> Tuple[Optional[pd.DataFrame], Optional[pd.Series]]:
-        """Create simple features as fallback"""
-        self.logger.info("Creating simple features as fallback...")
+        """Create enhanced features for better performance"""
+        self.logger.info("Creating enhanced molecular features...")
         
-        # Basic features from SMILES
         features_data = []
         target_data = []
         
@@ -317,20 +316,55 @@ class AffinifyCLI:
                 
             smiles = str(smiles)
             
-            # Simple molecular descriptors
+            # Enhanced molecular descriptors (25+ features)
             features = {
-                'mol_weight': len(smiles) * 10,  # Rough approximation
-                'num_atoms': smiles.count('C') + smiles.count('N') + smiles.count('O'),
-                'num_bonds': smiles.count('=') + smiles.count('#'),
-                'num_rings': smiles.count('c'),
-                'hetero_atoms': smiles.count('N') + smiles.count('O') + smiles.count('S'),
-                'aromatic_atoms': smiles.count('c') + smiles.count('n'),
+                # Basic counts
+                'mol_weight': len(smiles) * 10,
                 'smiles_length': len(smiles),
                 'carbon_count': smiles.count('C') + smiles.count('c'),
                 'nitrogen_count': smiles.count('N') + smiles.count('n'),
                 'oxygen_count': smiles.count('O') + smiles.count('o'),
                 'sulfur_count': smiles.count('S') + smiles.count('s'),
                 'halogen_count': smiles.count('F') + smiles.count('Cl') + smiles.count('Br') + smiles.count('I'),
+                
+                # Bond counts
+                'single_bonds': smiles.count('-'),
+                'double_bonds': smiles.count('='),
+                'triple_bonds': smiles.count('#'),
+                'aromatic_bonds': smiles.count(':'),
+                
+                # Ring features
+                'num_rings': smiles.count('c') + smiles.count('C1') + smiles.count('C2'),
+                'aromatic_atoms': smiles.count('c') + smiles.count('n') + smiles.count('o') + smiles.count('s'),
+                'aliphatic_rings': smiles.count('C1') + smiles.count('C2') + smiles.count('C3'),
+                
+                # Functional groups
+                'hydroxyl_groups': smiles.count('OH'),
+                'carbonyl_groups': smiles.count('C=O'),
+                'carboxyl_groups': smiles.count('COOH'),
+                'amino_groups': smiles.count('NH2'),
+                'methyl_groups': smiles.count('CH3'),
+                'phenyl_groups': smiles.count('c1ccccc1'),
+                
+                # Complexity measures
+                'branch_points': smiles.count('(') + smiles.count('['),
+                'complexity_score': len(set(smiles)),
+                'hetero_ratio': (smiles.count('N') + smiles.count('O') + smiles.count('S')) / max(len(smiles), 1),
+                
+                # Charge-related
+                'positive_charges': smiles.count('+'),
+                'negative_charges': smiles.count('-'),
+                
+                # Stereochemistry
+                'chiral_centers': smiles.count('@'),
+                'cis_trans_bonds': smiles.count('/') + smiles.count('\\'),
+                
+                # Derived features
+                'mw_per_atom': (len(smiles) * 10) / max(smiles.count('C') + smiles.count('N') + smiles.count('O') + smiles.count('S'), 1),
+                'heavy_atom_ratio': (smiles.count('N') + smiles.count('O') + smiles.count('S')) / max(smiles.count('C'), 1),
+                'ring_density': (smiles.count('c') + smiles.count('C1')) / max(len(smiles), 1),
+                'saturation_ratio': smiles.count('=') / max(len(smiles), 1),
+                'flexibility_score': smiles.count('-') / max(len(smiles), 1),
             }
             
             # Get target value - try each column in order
@@ -348,8 +382,8 @@ class AffinifyCLI:
                             continue
             
             if target_val is not None:
-                # Convert to pKd/pKi (negative log of molar concentration)
-                target_val = -np.log10(target_val * 1e-9)
+                # Convert to p-scale: p = 9 - log10(value in nM)
+                target_val = 9 - np.log10(target_val)
                 features_data.append(features)
                 target_data.append(target_val)
         
@@ -362,14 +396,14 @@ class AffinifyCLI:
         features_df = pd.DataFrame(features_data)
         target_series = pd.Series(target_data)
         
-        self.logger.info(f"Created {len(features_df)} samples with {len(features_df.columns)} features")
+        self.logger.info(f"Created {len(features_df)} samples with {len(features_df.columns)} enhanced features")
         self.logger.info(f"Target range: {target_series.min():.2f} to {target_series.max():.2f}")
         
         return features_df, target_series
     
     def train_models(self, features: pd.DataFrame, target: pd.Series, 
                     models: list = None, test_size: float = 0.2) -> Dict[str, Any]:
-        """Train selected models"""
+        """Train selected models with enhanced hyperparameters"""
         if models is None:
             models = ['RandomForest', 'XGBoost']  # Skip Neural Network for faster training
         
@@ -378,18 +412,20 @@ class AffinifyCLI:
         # Validate data quality for better model performance
         self.logger.info(f"Target statistics: mean={target.mean():.3f}, std={target.std():.3f}")
         self.logger.info(f"Target range: {target.min():.3f} to {target.max():.3f}")
+        self.logger.info(f"Enhanced features: {len(features.columns)} total features")
         
         # Check for sufficient variance in target
         if target.std() < 0.01:
             self.logger.warning("Target has very low variance, model performance may be poor")
         
-        # Train only selected models
+        # Enhanced model training with better hyperparameters
         results = {}
         for model_name in models:
-            self.logger.info(f"Training {model_name}...")
+            self.logger.info(f"Training enhanced {model_name}...")
             try:
                 if model_name == 'RandomForest':
-                    model_result = self.model_trainer.train_random_forest(features, target)
+                    # Enhanced RandomForest training
+                    model_result = self.train_enhanced_random_forest(features, target)
                 elif model_name == 'XGBoost':
                     model_result = self.model_trainer.train_xgboost(features, target)
                 elif model_name == 'NeuralNetwork':
@@ -423,6 +459,80 @@ class AffinifyCLI:
         
         self.logger.info(f"Training results saved to {metrics_file}")
         return results
+    
+    def train_enhanced_random_forest(self, features: pd.DataFrame, target: pd.Series):
+        """Train RandomForest with enhanced hyperparameters"""
+        from sklearn.ensemble import RandomForestRegressor
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import r2_score, mean_squared_error
+        from sklearn.preprocessing import RobustScaler
+        import joblib
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, target, test_size=0.2, random_state=42
+        )
+        
+        # Scale features for better performance
+        scaler = RobustScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # Enhanced RandomForest with optimized hyperparameters
+        rf = RandomForestRegressor(
+            n_estimators=300,          # More trees for better performance
+            max_depth=25,              # Deeper trees
+            min_samples_split=5,       # Prevent overfitting
+            min_samples_leaf=2,        # Prevent overfitting
+            max_features='sqrt',       # Good for many features
+            bootstrap=True,
+            random_state=42,
+            n_jobs=-1                  # Use all cores
+        )
+        
+        # Train the model
+        self.logger.info("Training enhanced RandomForest with 300 estimators...")
+        rf.fit(X_train_scaled, y_train)
+        
+        # Make predictions
+        y_pred = rf.predict(X_test_scaled)
+        
+        # Calculate metrics
+        r2 = r2_score(y_test, y_pred)
+        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+        
+        # Feature importance logging
+        feature_importance = sorted(
+            zip(features.columns, rf.feature_importances_), 
+            key=lambda x: x[1], reverse=True
+        )
+        
+        self.logger.info("Top 10 important features:")
+        for feat, importance in feature_importance[:10]:
+            self.logger.info(f"  {feat}: {importance:.4f}")
+        
+        # Save model
+        model_file = Path("models") / "enhanced_randomforest_model.pkl"
+        model_data = {
+            'model': rf,
+            'scaler': scaler,
+            'features': features.columns.tolist()
+        }
+        joblib.dump(model_data, model_file)
+        
+        result = {
+            'model': rf,
+            'scaler': scaler,
+            'test_metrics': {
+                'r2_score': r2,
+                'rmse': rmse
+            },
+            'model_file': str(model_file),
+            'feature_importance': dict(feature_importance)
+        }
+        
+        self.logger.info(f"Enhanced RandomForest - R²: {r2:.4f}, RMSE: {rmse:.4f}")
+        return result
     
     def create_data_summary(self, datasets_processed: list):
         """Create data summary"""
