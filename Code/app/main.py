@@ -374,10 +374,10 @@ def show_data_overview(data_collector, feature_extractor, visualizer):
                     if st.button("Process BindingDB Data"):
                         with st.spinner("Processing BindingDB data..."):
                             try:
-                                # Process BindingDB data
+                                # Process BindingDB data using unified CLI
                                 import subprocess
                                 result = subprocess.run(
-                                    ["python", "scripts/process_and_train.py", "--models", "RandomForest"],
+                                    ["python", "scripts/affinity_cli.py", "--process", "--data-source", "bindingdb"],
                                     capture_output=True,
                                     text=True,
                                     cwd=os.path.dirname(os.path.dirname(__file__))
@@ -394,10 +394,10 @@ def show_data_overview(data_collector, feature_extractor, visualizer):
                     if st.button("Process & Train Models"):
                         with st.spinner("Processing BindingDB data and training models..."):
                             try:
-                                # Process BindingDB data and train models
+                                # Process BindingDB data and train models using unified CLI
                                 import subprocess
                                 result = subprocess.run(
-                                    ["python", "scripts/process_and_train.py", "--models", "RandomForest", "XGBoost"],
+                                    ["python", "scripts/affinity_cli.py", "--process", "--train", "--data-source", "bindingdb", "--models", "RandomForest", "XGBoost"],
                                     capture_output=True,
                                     text=True,
                                     cwd=os.path.dirname(os.path.dirname(__file__))
@@ -412,7 +412,7 @@ def show_data_overview(data_collector, feature_extractor, visualizer):
                             except Exception as e:
                                 st.error(f"Error processing and training: {e}")
             else:
-                st.info("Download BindingDB data first using: python scripts/download_data.py")
+                st.info("Download BindingDB data first using: python scripts/affinity_cli.py --download")
     
     with col2:
         st.markdown("### Sample Data")
