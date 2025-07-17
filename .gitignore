@@ -49,3 +49,4 @@ Code/models/
 logs/
 demo_prediction_plot.png
 __pycache__/
+Code/results/
