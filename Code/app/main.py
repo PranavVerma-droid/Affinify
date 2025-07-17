@@ -81,6 +81,8 @@ def initialize_session_state():
         st.session_state.sample_data = None
     if 'molecular_features' not in st.session_state:
         st.session_state.molecular_features = None
+    if 'show_retrain_confirm' not in st.session_state:
+        st.session_state.show_retrain_confirm = False
     
     # Check for existing processed data
     check_existing_data()
@@ -373,7 +375,7 @@ def show_data_overview(data_collector, feature_extractor, visualizer):
                                 )
                                 if result.returncode == 0:
                                     st.success("BindingDB data processed successfully!")
-                                    st.experimental_rerun()
+                                    st.rerun()
                                 else:
                                     st.error("Error processing BindingDB data")
                         except Exception as e:
@@ -487,11 +489,47 @@ def show_model_training(data_collector, feature_extractor):
                                 st.write(f"- {metric}: {value:.4f}")
         
         # Allow retraining
-        if st.button("🔄 Retrain Models", type="secondary"):
-            st.session_state.models_trained = False
-            st.session_state.training_results = None
-            st.session_state.best_model = None
-            st.rerun()
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            if st.button("🔄 Retrain Models", type="secondary"):
+                st.session_state.show_retrain_confirm = True
+        
+        with col2:
+            if st.session_state.get('show_retrain_confirm', False):
+                if st.button("✅ Confirm Retrain", type="primary"):
+                    # Show confirmation and clear everything
+                    with st.spinner("Clearing model cache..."):
+                        # Clear all model-related session state
+                        st.session_state.models_trained = False
+                        st.session_state.training_results = None
+                        st.session_state.best_model = None
+                        st.session_state.feature_extractor = None
+                        st.session_state.show_retrain_confirm = False
+                        
+                        # Clear any cached model files from file system
+                        try:
+                            import shutil
+                            models_dir = Path("models")
+                            if models_dir.exists():
+                                shutil.rmtree(models_dir)
+                                models_dir.mkdir(exist_ok=True)
+                            
+                            results_dir = Path("results")
+                            if results_dir.exists():
+                                shutil.rmtree(results_dir)
+                                results_dir.mkdir(exist_ok=True)
+                                
+                            st.success("Model cache cleared! You can now retrain the models.")
+                            
+                        except Exception as e:
+                            st.warning(f"Could not clear model cache: {e}")
+                        
+                        # Force page refresh after clearing
+                        st.rerun()
+                
+                if st.button("❌ Cancel", type="secondary"):
+                    st.session_state.show_retrain_confirm = False
+                    st.rerun()
         
         return
     
