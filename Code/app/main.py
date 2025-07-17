@@ -27,7 +27,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS
+# Custom CSSd
 st.markdown("""
 <style>
     .main-header {
@@ -132,7 +132,7 @@ def check_existing_models():
             # Load best model (assume RandomForest for now, can be improved)
             rf_model_file = model_files['RandomForest']
             if rf_model_file.exists():
-                from models.ml_models import RandomForestModel
+                from models.ml_models import RandomForestModel #type: ignore
                 st.session_state.best_model = RandomForestModel()
                 st.session_state.best_model.load_model(rf_model_file)
                 st.session_state.models_trained = True
