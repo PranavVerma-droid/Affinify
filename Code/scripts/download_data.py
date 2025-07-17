@@ -319,12 +319,16 @@ def main():
     """Main data processing function"""
     print_banner()
     
+    # Check for command line arguments
+    skip_download = "--skip-download" in sys.argv
+    
     try:
         # Create directories
         create_directories()
         
-        # Guide user through manual download
-        guide_manual_download()
+        # Guide user through manual download (unless skipped)
+        if not skip_download:
+            guide_manual_download()
         
         # Check if file was downloaded
         bindingdb_file = check_downloaded_file()

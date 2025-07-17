@@ -369,30 +369,50 @@ def show_data_overview(data_collector, feature_extractor, visualizer):
             st.write(f"**Processed**: {'✅' if bindingdb_status['processed'] else '❌'}")
             
             if bindingdb_status['raw_downloaded']:
-                if st.button("Process BindingDB Data"):
-                    with st.spinner("Processing BindingDB data..."):
-                        try:
-                            # Process BindingDB data
-                            bindingdb_dir = Path("data/raw/bindingdb")
-                            tsv_files = list(bindingdb_dir.glob("*.tsv"))
-                            
-                            if tsv_files:
-                                # Process the first TSV file found
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Process BindingDB Data"):
+                        with st.spinner("Processing BindingDB data..."):
+                            try:
+                                # Process BindingDB data
                                 import subprocess
                                 result = subprocess.run(
-                                    ["python", "scripts/download_data.py", "--skip-download"],
+                                    ["python", "scripts/process_and_train.py", "--models", "RandomForest"],
                                     capture_output=True,
-                                    text=True
+                                    text=True,
+                                    cwd=os.path.dirname(os.path.dirname(__file__))
                                 )
                                 if result.returncode == 0:
                                     st.success("BindingDB data processed successfully!")
                                     st.rerun()
                                 else:
-                                    st.error("Error processing BindingDB data")
-                        except Exception as e:
-                            st.error(f"Error processing BindingDB data: {e}")
+                                    st.error(f"Error processing BindingDB data: {result.stderr}")
+                            except Exception as e:
+                                st.error(f"Error processing BindingDB data: {e}")
+                
+                with col2:
+                    if st.button("Process & Train Models"):
+                        with st.spinner("Processing BindingDB data and training models..."):
+                            try:
+                                # Process BindingDB data and train models
+                                import subprocess
+                                result = subprocess.run(
+                                    ["python", "scripts/process_and_train.py", "--models", "RandomForest", "XGBoost"],
+                                    capture_output=True,
+                                    text=True,
+                                    cwd=os.path.dirname(os.path.dirname(__file__))
+                                )
+                                if result.returncode == 0:
+                                    st.success("BindingDB data processed and models trained!")
+                                    # Update session state
+                                    st.session_state.models_trained = True
+                                    st.rerun()
+                                else:
+                                    st.error(f"Error processing and training: {result.stderr}")
+                            except Exception as e:
+                                st.error(f"Error processing and training: {e}")
             else:
-                st.info("Download BindingDB data first using the download script")
+                st.info("Download BindingDB data first using: python scripts/download_data.py")
     
     with col2:
         st.markdown("### Sample Data")

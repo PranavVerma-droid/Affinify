@@ -37,15 +37,28 @@ conda install -c conda-forge rdkit biopython py3dmol
    python scripts/download_data.py
    ```
 
-2. **Train Models**:
+2. **Process BindingDB and Train Models** (Recommended):
    ```bash
-   python scripts/train_models.py
+   python scripts/process_and_train.py --models RandomForest XGBoost
+   ```
+
+   Or for faster testing:
+   ```bash
+   python scripts/process_and_train.py --use-sample --models RandomForest
    ```
 
 3. **Launch Web App**:
    ```bash
    streamlit run app/main.py
    ```
+
+### Alternative: Step-by-Step Training
+
+If you prefer the original workflow:
+
+1. **Download Data**: `python scripts/download_data.py`
+2. **Train Models**: `python scripts/train_models.py`
+3. **Launch Web App**: `streamlit run app/main.py`
 
 ### Troubleshooting
 

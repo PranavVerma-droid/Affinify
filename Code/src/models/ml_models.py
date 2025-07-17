@@ -496,3 +496,108 @@ class ModelTrainer:
         
         model = self.results[model_name]['model']
         return model.predict(X)
+    
+    def train_random_forest(self, features, target, test_size=0.2, random_state=42):
+        """Train only Random Forest model"""
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import r2_score, mean_squared_error
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, target, test_size=test_size, random_state=random_state
+        )
+        
+        # Train Random Forest
+        rf_model = RandomForestModel(n_estimators=100, random_state=random_state)
+        rf_model.fit(X_train, y_train)
+        
+        # Make predictions
+        y_pred = rf_model.predict(X_test)
+        
+        # Calculate metrics
+        test_metrics = {
+            'r2_score': r2_score(y_test, y_pred),
+            'rmse': mean_squared_error(y_test, y_pred) ** 0.5
+        }
+        
+        # Save model
+        models_dir = Path("models")
+        models_dir.mkdir(exist_ok=True)
+        model_file = models_dir / "randomforest_model.pkl"
+        rf_model.save_model(model_file)
+        
+        return {
+            'model': rf_model,
+            'test_metrics': test_metrics,
+            'model_file': str(model_file)
+        }
+    
+    def train_xgboost(self, features, target, test_size=0.2, random_state=42):
+        """Train only XGBoost model"""
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import r2_score, mean_squared_error
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, target, test_size=test_size, random_state=random_state
+        )
+        
+        # Train XGBoost
+        xgb_model = XGBoostModel(n_estimators=100, random_state=random_state)
+        xgb_model.fit(X_train, y_train)
+        
+        # Make predictions
+        y_pred = xgb_model.predict(X_test)
+        
+        # Calculate metrics
+        test_metrics = {
+            'r2_score': r2_score(y_test, y_pred),
+            'rmse': mean_squared_error(y_test, y_pred) ** 0.5
+        }
+        
+        # Save model
+        models_dir = Path("models")
+        models_dir.mkdir(exist_ok=True)
+        model_file = models_dir / "xgboost_model.pkl"
+        xgb_model.save_model(model_file)
+        
+        return {
+            'model': xgb_model,
+            'test_metrics': test_metrics,
+            'model_file': str(model_file)
+        }
+    
+    def train_neural_network(self, features, target, test_size=0.2, random_state=42):
+        """Train only Neural Network model"""
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import r2_score, mean_squared_error
+        
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(
+            features, target, test_size=test_size, random_state=random_state
+        )
+        
+        # Train Neural Network
+        nn_model = NeuralNetworkModel(hidden_layers=[128, 64], random_state=random_state)
+        nn_model.fit(X_train, y_train)
+        
+        # Make predictions
+        y_pred = nn_model.predict(X_test)
+        
+        # Calculate metrics
+        test_metrics = {
+            'r2_score': r2_score(y_test, y_pred),
+            'rmse': mean_squared_error(y_test, y_pred) ** 0.5
+        }
+        
+        # Save model
+        models_dir = Path("models")
+        models_dir.mkdir(exist_ok=True)
+        model_file = models_dir / "neuralnetwork_model.pkl"
+        nn_model.save_model(model_file)
+        
+        return {
+            'model': nn_model,
+            'test_metrics': test_metrics,
+            'model_file': str(model_file)
+        }

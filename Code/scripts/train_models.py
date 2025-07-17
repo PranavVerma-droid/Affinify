@@ -44,7 +44,32 @@ def load_data():
     
     data_dir = Path("data/processed")
     
-    # Try to load processed data first
+    # Try to load BindingDB data first
+    bindingdb_file = data_dir / "bindingdb_subset.csv"
+    if bindingdb_file.exists():
+        logger.info("Loading BindingDB subset...")
+        try:
+            df = pd.read_csv(bindingdb_file)
+            logger.info(f"Loaded BindingDB subset with {len(df)} records")
+            
+            # Process features from BindingDB
+            feature_extractor = MolecularFeatureExtractor()
+            features, target = feature_extractor.prepare_features(df)
+            
+            # Save processed data
+            features_file = data_dir / "processed_features.csv"
+            target_file = data_dir / "target_values.csv"
+            features.to_csv(features_file, index=False)
+            target.to_csv(target_file, index=False)
+            
+            logger.info(f"Processed BindingDB: {len(features)} samples with {len(features.columns)} features")
+            return features, target
+            
+        except Exception as e:
+            logger.warning(f"Error processing BindingDB data: {e}")
+            logger.info("Falling back to sample data...")
+    
+    # Try to load processed data if available
     features_file = data_dir / "processed_features.csv"
     target_file = data_dir / "target_values.csv"
     
