@@ -1,0 +1,16 @@
+Ligand SMILES,Target Name,PDB ID(s)
+CCO,Alcohol dehydrogenase,1HTB
+CC(=O)Oc1ccccc1C(=O)O,Cyclooxygenase-1,1PTH
+CN1C=NC2=C1C(=O)N(C(=O)N2C)C,Adenosine receptor A2A,2YDO
+CC(C)CC1=CC=C(C=C1)C(C)C(=O)O,Cyclooxygenase-2,4COX
+CC(C)NCC(O)COc1cccc2ccccc12,Beta-2 adrenergic receptor,2RH1
+COc1cc2c(cc1OC)C(=NCC2)C(=O)NCCN(C)C,Acetylcholinesterase,1EVE
+C[N+](C)(C)CC(=O)[O-],Cholinergic receptor,2XZ5
+O=C(O)c1cc(NS(=O)(=O)c2ccc(N)cc2)ccc1,Carbonic anhydrase II,1G52
+CC(C)Cc1ccc(cc1)C(C)C(=O)O,Cytochrome P450 2C9,1R9O
+NC(=O)C1=CN(C=CC1)C1CC(O)C(CO)O1,Thymidine kinase,1E2P
+C[C@H]1O[C@@H](OC[C@H]2O[C@@H](OC[C@H]3O[C@@H](OC[C@H]4O[C@@H](O)[C@H](O)[C@H](O)[C@H]4O)[C@H](O)[C@H](O)[C@H]3O)[C@H](O)[C@H](O)[C@H]2O)[C@H](O)[C@H](O)[C@H]1O,Alpha-amylase,1SMD
+CCOC(=O)[C@@H]1CCCN1C(=O)[C@H](CCCNC(=N)N)NC(=O)[C@H](CC(C)C)NC(=O)[C@H](CC(=O)O)NC(=O)CNC(=O)[C@H](CC(N)=O)NC(=O)[C@H](CCCNC(=N)N)NC(=O)[C@H](CO)NC(=O)[C@H](CO)NC(=O)[C@@H]1CCCN1C(=O)[C@H](CCCNC(=N)N)NC(=O)CNC(=O)[C@H](Cc1ccc(O)cc1)NC(=O)[C@H](C)NC(=O)CNC(=O)CNC(=O)[C@@H]1CCCN1C(=O)[C@H](CCCNC(=N)N)NC(=O)[C@H](Cc1c[nH]c2ccccc12)NC(=O)[C@H](Cc1ccccc1)NC(=O)[C@H](CC(C)C)NC(=O)CNC(=O)[C@H](CC(=O)O)NC(=O)[C@H](CC(C)C)NC(=O)[C@H](C)NC(=O)[C@H](CC(C)C)NC(=O)CNC(=O)[C@H](CC(=O)N)NC(=O)[C@H](CC(C)C)NC(=O)[C@H](CO)N,Factor Xa,1KSN
+CCc1c(C)nc2c(nccn2)c1NC(=O)c1ccc(cc1)Cn1cncn1,Tyrosine-protein kinase ABL,2HYY
+CCN(CC)CCCC(C)Nc1ccnc2cc(Cl)ccc12,Histamine H1 receptor,3RZE
+CN(C)CCc1c[nH]c2ccc(CC3COC(=O)N3)cc12,Monoamine oxidase A,2Z5Y

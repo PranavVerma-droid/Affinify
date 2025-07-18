@@ -1,0 +1,26 @@
+Ligand SMILES,Target Name,PDB ID(s),Known_Affinity_nM,Expected_Range
+CCO,Alcohol dehydrogenase,1HTB,450000,Low
+CC(=O)Oc1ccccc1C(=O)O,Cyclooxygenase-1,1PTH,15000,Medium
+CN1C=NC2=C1C(=O)N(C(=O)N2C)C,Adenosine receptor A2A,2YDO,84,High
+CC(C)CC1=CC=C(C=C1)C(C)C(=O)O,Cyclooxygenase-2,4COX,125,High
+CC(C)NCC(O)COc1cccc2ccccc12,Beta-2 adrenergic receptor,2RH1,36,High
+COc1cc2c(cc1OC)C(=NCC2)C(=O)NCCN(C)C,Acetylcholinesterase,1EVE,13,High
+C[N+](C)(C)CC(=O)[O-],Cholinergic receptor,2XZ5,8400,Medium
+O=C(O)c1cc(NS(=O)(=O)c2ccc(N)cc2)ccc1,Carbonic anhydrase II,1G52,23,High
+CC(C)Cc1ccc(cc1)C(C)C(=O)O,Cytochrome P450 2C9,1R9O,3800,Medium
+NC(=O)C1=CN(C=CC1)C1CC(O)C(CO)O1,Thymidine kinase,1E2P,5,High
+Clc1ccc(COC(=O)N(CCCl)CCCl)cc1,Glutathione S-transferase,1PD2,1700,Medium
+C1=CC=C2C(=C1)C=CN=C2C(=O)NC3=CC(=C(C=C3)OC4=CC=CC=C4)Cl,EGFR Kinase,1M17,3,High
+CNCCC(Oc1ccccc1)c2ccccc2,Dopamine D3 receptor,3PBL,27,High
+Cc1ccc(cc1)S(=O)(=O)NC(=O)NN=Cc2ccc(o2)c3ccc(Cl)cc3,HIV Protease,1HPX,42,High
+Cc1ccc2c(c1)c(CC(=O)O)c(n2Cc3ccc(F)cc3)C(=O)c4ccc(Cl)cc4,Cyclooxygenase-2,3NT1,4,High
+CC(C)Oc1ccccc1OCC(O)CNC(C)C,Beta-1 adrenergic receptor,2VT4,870,Medium
+CC(CCc1ccc(cc1)C(C)(C)C)C,Androgen receptor,2AM9,3400,Medium
+CCCC1C(=O)N(CC(=O)N(C(C(=O)NC(C(=O)N1)CC(C)C)C)CC(=O)N(C)C)C,Tyrosine-protein kinase BTK,3GEN,8,High
+COc1ccc(cc1OC)CCN2CCN(CC2)c3ncccn3,Serotonin receptor 2A,6A93,14,High
+CCN1CCCC1CNC(=O)c2cc(ccc2OC)S(=O)(=O)N3CCCC3,Dopamine D2 receptor,6CM4,3,High
+Cc1nccn1CC2CCN(CC2)C(=O)c3ccc(cc3)F,Serotonin 5-HT1B receptor,4IAR,7,High
+NC(=O)c1ccccc1O,Fatty acid amide hydrolase,3K84,16000,Medium
+CC(C)C1=C(C(=C(N1CC[C@H](C)C(=O)O)C)C(=O)OC)C,HMG-CoA reductase,1HWK,5,High
+Cc1ccc(cc1C)NC(=O)c2cc(cc(c2)S(=O)(=O)N)C,VEGFR2 kinase,2P2H,3,High
+CN1CCN(CC1)c2cc3n(c4ccccc4c3cc2F)C(=O)c5ccc(cc5)Cl,Benzodiazepine receptor,1EXM,0.4,Very High
