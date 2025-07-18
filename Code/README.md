@@ -1,21 +1,19 @@
 # Affinify - AI-Powered Protein-Ligand Binding Affinity Predictor
 
-A unified CLI-based system for predicting protein-ligand binding affinity using machine learning.
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.8+
+- Python 3.9+
 - Virtual environment (recommended)
 
 ### Installation
 ```bash
-# Create virtual environment
-python -m venv affinity_env
-source affinity_env/bin/activate  # On Windows: affinity_env\Scripts\activate
-
-# Install dependencies
+cd Code
+conda create -n affinity_env python=3.9
+conda activate affinity_env
 pip install -r requirements.txt
+# Note: Some packages may fail - that's okay, fallbacks are available
 ```
 
 ### Usage
@@ -126,35 +124,12 @@ This project demonstrates:
 - **Computational Biology**: Molecular descriptors, binding affinity
 - **Web Development**: Interactive applications with Streamlit
 
-## 🛠️ Development
-
-### Migration from Old Scripts
-The project has been simplified:
-- ✅ `affinity_cli.py` - New unified interface
-- ❌ `download_data.py` - Replaced by `--download` flag
-- ❌ `process_and_train.py` - Replaced by `--process --train`
-- ❌ `train_models.py` - Replaced by `--train` flag
-
-### Next Steps
-1. **Enhanced Features**: Add more sophisticated molecular descriptors
-2. **Model Improvement**: Implement graph neural networks
-3. **Cloud Deployment**: Deploy to cloud platforms
-4. **Database Integration**: Connect to live molecular databases
-
 ## 📝 License
 
-This project is for educational purposes. See individual data source licenses for BindingDB and other datasets.
+This project is for educational purposes. See individual data source licenses for BindingDB and other datasets. [LICENSE](../LICENSE)
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
 
 ## 📧 Contact
 
 **Lead Developer**: Pranav Verma  
 **School**: Lotus Valley International School  
-**Class**: XII Aryabhatta  
-**Subject**: Computer Science Project

@@ -44,9 +44,9 @@
 .bak 
 .mtc
 build/
-data/
+Code/data/
 Code/models/
-logs/
-demo_prediction_plot.png
+Code/logs/
+Code/demo_prediction_plot.png
 __pycache__/
 Code/results/
