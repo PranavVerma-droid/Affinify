@@ -11,6 +11,7 @@ import json
 import os
 import sys
 import subprocess
+import time
 from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
@@ -128,6 +129,12 @@ class AffinifyApp:
             st.session_state.system_status = {}
         if 'processing_log' not in st.session_state:
             st.session_state.processing_log = []
+        if 'chat_messages' not in st.session_state:
+            st.session_state.chat_messages = []
+        if 'getting_response' not in st.session_state:
+            st.session_state.getting_response = False
+        if 'ollama_available' not in st.session_state:
+            st.session_state.ollama_available = False
     
     def load_system_status(self):
         """Load current system status"""
@@ -1190,28 +1197,35 @@ class AffinifyApp:
         
         # Check if Ollama is available
         if not st.session_state.ollama_available:
-            st.error("🔴 AI Assistant not available")
-            col1, col2 = st.columns([1, 1])
+            # Try to check availability
+            try:
+                st.session_state.ollama_available = self.chat.check_ollama_availability()
+            except:
+                st.session_state.ollama_available = False
             
-            with col1:
-                st.markdown("""
-                **Troubleshooting:**
-                - Ensure Ollama is running: `ollama serve`
-                - Check if model is installed: `ollama list`
-                - Install model: `ollama pull llama3.2:3b`
-                """)
-            
-            with col2:
-                if st.button("🔄 Retry Connection", type="primary"):
-                    st.session_state.ollama_available = self.chat.check_ollama_availability()
-                    st.rerun()
-            return
+            if not st.session_state.ollama_available:
+                st.error("🔴 AI Assistant not available")
+                col1, col2 = st.columns([1, 1])
+                
+                with col1:
+                    st.markdown("""
+                    **Troubleshooting:**
+                    - Ensure Ollama is running: `ollama serve`
+                    - Check if model is installed: `ollama list`
+                    - Install model: `ollama pull pranavverma/Affinify-AI:latest`
+                    """)
+                
+                with col2:
+                    if st.button("🔄 Retry Connection", type="primary"):
+                        st.session_state.ollama_available = self.chat.check_ollama_availability()
+                        st.rerun()
+                return
         
         # Main chat container
         st.markdown('<div class="chat-container">', unsafe_allow_html=True)
         
         # Display chat history
-        for message in st.session_state.chat_messages:
+        for i, message in enumerate(st.session_state.chat_messages):
             if message['role'] == 'user':
                 st.markdown(f"""
                 <div class="user-message">
@@ -1221,13 +1235,20 @@ class AffinifyApp:
                 </div>
                 """, unsafe_allow_html=True)
             else:
-                st.markdown(f"""
-                <div class="assistant-message">
-                    <div class="assistant-bubble">
-                        {message['content']}
+                # If this is the last message and we're currently streaming, show placeholder
+                if (i == len(st.session_state.chat_messages) - 1 and 
+                    st.session_state.get('getting_response', False)):
+                    # Create placeholder for streaming response
+                    streaming_placeholder = st.empty()
+                    st.session_state.streaming_placeholder = streaming_placeholder
+                else:
+                    st.markdown(f"""
+                    <div class="assistant-message">
+                        <div class="assistant-bubble">
+                            {message['content']}
+                        </div>
                     </div>
-                </div>
-                """, unsafe_allow_html=True)
+                    """, unsafe_allow_html=True)
         
         # Close chat container
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1262,20 +1283,68 @@ class AffinifyApp:
             # Get the last user message
             last_user_message = st.session_state.chat_messages[-1]['content']
             
-            # Show thinking indicator and get response
-            with st.spinner("Assistant is thinking..."):
-                response = self.chat.send_message(last_user_message)
+            # Add empty assistant message to display streaming
+            self.chat.add_message('assistant', "")
+            
+            # Rerun to show the streaming placeholder
+            st.rerun()
+        
+        # Handle streaming if we're in the middle of getting a response
+        if (st.session_state.get('getting_response', False) and 
+            hasattr(st.session_state, 'streaming_placeholder') and
+            st.session_state.chat_messages and
+            st.session_state.chat_messages[-1]['role'] == 'assistant' and
+            st.session_state.chat_messages[-1]['content'] == ""):
+            
+            # Get the last user message
+            last_user_message = st.session_state.chat_messages[-2]['content']
+            
+            # Initialize streaming response
+            streaming_response = ""
+            
+            try:
+                # Get streaming response
+                for chunk in self.chat.send_message_stream(last_user_message):
+                    streaming_response += chunk
+                    
+                    # Update the last message content with streaming text
+                    st.session_state.chat_messages[-1]['content'] = streaming_response
+                    
+                    # Display streaming response in the correct position
+                    with st.session_state.streaming_placeholder.container():
+                        st.markdown(f"""
+                        <div class="assistant-message">
+                            <div class="assistant-bubble">
+                                {streaming_response}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Small delay to make streaming visible
+                    time.sleep(0.05)
                 
-                if response:
-                    self.chat.add_message('assistant', response)
-                else:
-                    error_msg = self.chat.config.get('error_message', 'Sorry, I encountered an error.')
-                    self.chat.add_message('assistant', error_msg)
+                # Final update with complete response
+                st.session_state.chat_messages[-1]['content'] = streaming_response
+                
+            except Exception as e:
+                error_msg = self.chat.config.get('error_message', 'Sorry, I encountered an error.')
+                st.session_state.chat_messages[-1]['content'] = error_msg
+                
+                with st.session_state.streaming_placeholder.container():
+                    st.markdown(f"""
+                    <div class="assistant-message">
+                        <div class="assistant-bubble">
+                            {error_msg}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
             
-            # Clear the flag
+            # Clear the flag and placeholder
             st.session_state.getting_response = False
+            if hasattr(st.session_state, 'streaming_placeholder'):
+                delattr(st.session_state, 'streaming_placeholder')
             
-            # Rerun to show the assistant response
+            # Rerun to show the final state
             st.rerun()
         
         col1, col2, col3 = st.columns([1, 1, 1])
