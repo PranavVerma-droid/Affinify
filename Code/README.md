@@ -41,6 +41,126 @@ python scripts/affinity_cli.py --process --train --data-source bindingdb --max-r
 streamlit run app/main.py
 ```
 
+## 🤖 Ollama AI Integration
+
+Affinify includes an integrated AI assistant powered by Ollama for enhanced user support and molecular modeling guidance.
+
+### Prerequisites for Ollama
+- **Ollama installed**: Download from [ollama.com](https://ollama.com)
+- **Python 3.9+**: Same as main project requirements
+- **At least 4GB RAM**: For model inference
+
+### Installation & Setup
+
+1. **Install Ollama**:
+   ```bash
+   # Linux/macOS
+   curl -fsSL https://ollama.com/install.sh | sh
+   
+   # Windows: Download from ollama.com
+   ```
+
+2. **Start Ollama Service**:
+   ```bash
+   ollama serve
+   ```
+
+3. **Pull the Fine-tuned Affinify Model**:
+   ```bash
+   ollama pull pranavverma/Affinify-AI:latest
+   ```
+
+### Fine-tuned Model Details
+
+The **Affinify-AI** model is a custom fine-tuned version specifically trained for this project.
+
+**Model Repository**: [ollama.com/pranavverma/Affinify-AI](https://ollama.com/pranavverma/Affinify-AI)
+
+**Modelfile**: [Modelfile](ollama-model-finetuning/Modelfile)
+
+
+
+### Configuration
+
+Enable/disable Ollama integration in `config/config.json`:
+
+```json
+{
+  "ollama": {
+    "enabled": true,                              // Set to false to disable
+    "host": "http://localhost:11434",             // Ollama server URL
+    "model": "pranavverma/Affinify-AI:latest",   // Model to use
+    "temperature": 0.7,                          // Response creativity (0.0-1.0)
+    "max_tokens": 1000,                          // Max response length
+    "timeout": 30                                // Request timeout (seconds)
+  }
+}
+```
+
+### Using Different Models
+
+To use a different Ollama model:
+
+1. **Pull the model**:
+   ```bash
+   ollama pull llama2:7b
+   # or
+   ollama pull mistral:7b
+   ```
+
+2. **Update config**:
+   ```json
+   {
+     "ollama": {
+       "model": "llama2:7b"  // Change to your preferred model
+     }
+   }
+   ```
+
+### Usage in Web Application
+
+The AI assistant is integrated into the Streamlit web interface:
+
+1. **Start the application**:
+   ```bash
+   streamlit run app/main.py
+   ```
+
+2. **Access the AI Assistant**:
+   - Look for the "🤖 Affinify Assistant" section
+   - Ask questions about:
+     - Protein-ligand binding concepts
+     - Machine learning model interpretations
+     - Data processing workflows
+     - Troubleshooting guidance
+
+### Troubleshooting
+
+**Common Issues**:
+
+1. **"AI model not available"**:
+   ```bash
+   # Check if Ollama is running
+   curl http://localhost:11434/api/tags
+   
+   # Start Ollama if needed
+   ollama serve
+   ```
+
+2. **Model not found**:
+   ```bash
+   # Pull the model
+   ollama pull pranavverma/Affinify-AI:latest
+   ```
+
+3. **Connection timeout**:
+   - Increase timeout in config.json
+   - Check firewall settings
+   - Verify Ollama host URL
+
+**Disable Ollama**:
+Set `"enabled": false` in config.json if you prefer to use the application without AI assistance.
+
 ## 📊 Project Structure
 
 ```

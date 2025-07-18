@@ -106,7 +106,7 @@
   "ollama": {
     "enabled": true,
     "host": "http://localhost:11434",
-    "model": "medllama2:latest",
+    "model": "pranavverma/Affinify-AI:latest",
     "temperature": 0.7,
     "max_tokens": 1000,
     "system_prompt": "You are Affinify Assistant, an AI helper for the Affinify protein-ligand binding affinity prediction platform. You help users with questions about molecular modeling, machine learning, data processing, and using the Affinify system. Be helpful, concise, and scientifically accurate.",
