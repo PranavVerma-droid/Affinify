@@ -67,7 +67,7 @@ Affinify includes an integrated AI assistant powered by Ollama for enhanced user
 
 3. **Pull the Fine-tuned Affinify Model**:
    ```bash
-   ollama pull pranavverma/Affinify-AI:latest
+   ollama pull pranavverma/Affinify-AI:8b
    ```
 
 ### Fine-tuned Model Details
@@ -77,6 +77,11 @@ The **Affinify-AI** model is a custom fine-tuned version specifically trained fo
 **Model Repository**: [ollama.com/pranavverma/Affinify-AI](https://ollama.com/pranavverma/Affinify-AI)
 
 **Modelfile**: [Modelfile](ollama-model-finetuning/Modelfile)
+
+There are 3 versions of the model, which vary on size:
+- Affinify-AI:8b - Trained on llama3.1:8b
+- Affinify-AI:3b - Trained on llama3.2:3b
+- Affinify-AI:1b - Trained on llama3.2:1b
 
 
 
