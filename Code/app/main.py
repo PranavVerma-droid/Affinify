@@ -1250,6 +1250,16 @@ class AffinifyApp:
                     </div>
                     """, unsafe_allow_html=True)
         
+        # Show thinking indicator when getting response
+        if st.session_state.get('getting_response', False):
+            st.markdown("""
+            <div class="assistant-message">
+                <div class="assistant-bubble">
+                    <em>🤔 Affinify Assistant is thinking...</em>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
         # Close chat container
         st.markdown('</div>', unsafe_allow_html=True)
         
@@ -1258,11 +1268,17 @@ class AffinifyApp:
         with st.form(key='chat_form', clear_on_submit=True):
             user_input = st.text_input(
                 "",
-                placeholder="Message Affinify Assistant...",
-                key="chat_input_field"
+                placeholder="Message Affinify Assistant..." if not st.session_state.get('getting_response', False) else "Affinify Assistant is thinking...",
+                key="chat_input_field",
+                disabled=st.session_state.get('getting_response', False)
             )
             
-            send_button = st.form_submit_button("Send", type="primary", use_container_width=True)
+            send_button = st.form_submit_button(
+                "🤔 Thinking..." if st.session_state.get('getting_response', False) else "Send", 
+                type="primary", 
+                use_container_width=True,
+                disabled=st.session_state.get('getting_response', False)
+            )
         
         # Handle message sending
         if send_button and user_input.strip():
