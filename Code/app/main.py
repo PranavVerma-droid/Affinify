@@ -31,6 +31,9 @@ import py3Dmol
 import base64
 from io import BytesIO
 
+# Import components.v1 explicitly
+from streamlit.components.v1 import html
+
 try:
     from data_processing.data_collector import DataCollector
     from data_processing.feature_extractor import MolecularFeatureExtractor
@@ -606,7 +609,7 @@ class AffinifyApp:
             
             return svg.replace('svg:', '')
         except Exception as e:
-            st.error(f"Error rendering molecule: {e}")
+            logger.error(f"Error rendering molecule: {e}")
             return None
 
     def render_molecule_3d(self, smiles: str, size: tuple = (400, 400)) -> str:
@@ -630,9 +633,26 @@ class AffinifyApp:
             view.setStyle({'stick':{}})
             view.zoomTo()
             
-            return view.render()
+            # Get the HTML representation
+            html_content = view._make_html()
+            
+            # Extract just the HTML content (remove full page wrapper if present)
+            if '<html>' in html_content:
+                # Extract content between body tags
+                start = html_content.find('<body>') + 6
+                end = html_content.find('</body>')
+                html_content = html_content[start:end].strip()
+            
+            # Add required styling
+            html_content = f"""
+            <div style="width: {size[0]}px; height: {size[1]}px; position: relative;">
+                {html_content}
+            </div>
+            """
+            
+            return html_content
         except Exception as e:
-            st.error(f"Error rendering 3D molecule: {e}")
+            logger.error(f"Error rendering 3D molecule: {e}")
             return None
 
     def show_predictions_page(self):
@@ -746,7 +766,7 @@ class AffinifyApp:
                                         st.markdown("<h4>3D Structure</h4>", unsafe_allow_html=True)
                                         viewer = self.render_molecule_3d(rec['smiles'])
                                         if viewer:
-                                            st.components.html(viewer, height=400)
+                                            html(viewer, height=400)
                                     
                                     # Show metrics with animation
                                     st.markdown("""
@@ -902,7 +922,7 @@ class AffinifyApp:
                             st.markdown("##### 3D Molecular Visualization")
                             viewer = self.render_molecule_3d(smiles)
                             if viewer:
-                                st.components.html(viewer, height=450)
+                                html(viewer, height=450)
                         else:
                             st.error("Could not make prediction. Please check your input.")
                 else:
