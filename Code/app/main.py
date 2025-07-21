@@ -607,7 +607,15 @@ class AffinifyApp:
             drawer.FinishDrawing()
             svg = drawer.GetDrawingText()
             
-            return svg.replace('svg:', '')
+            # Clean up SVG - remove any stray tags and svg: prefix
+            svg = svg.replace('svg:', '')  # Remove svg: prefix
+            
+            # Remove any stray HTML tags that might be present
+            svg = svg.replace('</div>', '').replace('<div>', '')
+            svg = svg.replace('</body>', '').replace('<body>', '')
+            svg = svg.replace('</html>', '').replace('<html>', '')
+            
+            return svg
         except Exception as e:
             logger.error(f"Error rendering molecule: {e}")
             return None
@@ -642,6 +650,9 @@ class AffinifyApp:
                 start = html_content.find('<body>') + 6
                 end = html_content.find('</body>')
                 html_content = html_content[start:end].strip()
+            
+            # Clean up any stray div tags
+            html_content = html_content.replace('</div>', '').replace('<div>', '')
             
             # Add required styling
             html_content = f"""
@@ -754,16 +765,22 @@ class AffinifyApp:
                                         # Show 2D structure
                                         svg = self.render_molecule(rec['smiles'])
                                         if svg:
-                                            st.markdown(f"""
+                                            # Display header separately
+                                            st.markdown("""
                                             <div style="text-align: center;">
                                                 <h4>2D Structure</h4>
-                                                {svg}
                                             </div>
                                             """, unsafe_allow_html=True)
+                                            # Display SVG separately
+                                            st.markdown(f'<div style="text-align: center;">{svg}</div>', unsafe_allow_html=True)
                                     
                                     with col2:
                                         # Show 3D structure
-                                        st.markdown("<h4>3D Structure</h4>", unsafe_allow_html=True)
+                                        st.markdown("""
+                                        <div style="text-align: center;">
+                                            <h4>3D Structure</h4>
+                                        </div>
+                                        """, unsafe_allow_html=True)
                                         viewer = self.render_molecule_3d(rec['smiles'])
                                         if viewer:
                                             html(viewer, height=400)
@@ -775,20 +792,19 @@ class AffinifyApp:
                                         from { transform: translateX(-100%); opacity: 0; }
                                         to { transform: translateX(0); opacity: 1; }
                                     }
-                                    .metric-row > div {
+                                    [data-testid="column"] {
                                         animation: slideIn 0.5s ease-out forwards;
                                     }
-                                    .metric-row > div:nth-child(2) {
+                                    [data-testid="column"]:nth-child(2) {
                                         animation-delay: 0.1s;
                                     }
-                                    .metric-row > div:nth-child(3) {
+                                    [data-testid="column"]:nth-child(3) {
                                         animation-delay: 0.2s;
                                     }
                                     </style>
                                     """, unsafe_allow_html=True)
                                     
                                     col1, col2, col3 = st.columns(3)
-                                    st.markdown('<div class="metric-row">', unsafe_allow_html=True)
                                     
                                     with col1:
                                         st.metric(
@@ -810,8 +826,6 @@ class AffinifyApp:
                                             f"{rec['similarity_score']*100:.1f}%",
                                             help="How similar this protein is to your target"
                                         )
-                                    
-                                    st.markdown('</div>', unsafe_allow_html=True)
                                     
                                     # Show SMILES with copy button
                                     st.markdown("##### Molecule SMILES")
