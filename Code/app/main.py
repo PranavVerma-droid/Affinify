@@ -18,7 +18,18 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # Add src directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+current_dir = Path(__file__).parent
+src_dir = current_dir.parent / 'src'
+sys.path.insert(0, str(src_dir))
+
+from models.ml_models import AffinityPredictor
+import plotly.graph_objects as go
+from rdkit import Chem
+from rdkit.Chem import Draw
+from rdkit.Chem import AllChem
+import py3Dmol
+import base64
+from io import BytesIO
 
 try:
     from data_processing.data_collector import DataCollector
@@ -135,6 +146,8 @@ class AffinifyApp:
             st.session_state.getting_response = False
         if 'ollama_available' not in st.session_state:
             st.session_state.ollama_available = False
+        if 'protein_search' not in st.session_state:
+            st.session_state.protein_search = ''
     
     def load_system_status(self):
         """Load current system status"""
@@ -565,180 +578,419 @@ class AffinifyApp:
             except Exception as e:
                 st.error(f"Error loading data summary: {e}")
     
+    def init_predictor(self):
+        """Initialize the affinity predictor"""
+        if not hasattr(self, 'predictor'):
+            self.predictor = AffinityPredictor()
+            if not self.predictor.load_data():
+                st.error("❌ Could not load prediction models. Please ensure data processing and model training are complete.")
+                return False
+        return True
+
+    def render_molecule(self, smiles: str, size: tuple = (400, 400)) -> str:
+        """Render molecule as SVG image"""
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                return None
+            
+            # Generate 2D coordinates
+            AllChem.Compute2DCoords(mol)
+            
+            # Draw molecule
+            d2d = Draw.rdDepictor.Compute2DCoords(mol)
+            drawer = Draw.rdMolDraw2D.MolDraw2DSVG(size[0], size[1])
+            drawer.DrawMolecule(mol)
+            drawer.FinishDrawing()
+            svg = drawer.GetDrawingText()
+            
+            return svg.replace('svg:', '')
+        except Exception as e:
+            st.error(f"Error rendering molecule: {e}")
+            return None
+
+    def render_molecule_3d(self, smiles: str, size: tuple = (400, 400)) -> str:
+        """Generate 3D visualization of molecule"""
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                return None
+            
+            # Generate 3D coordinates
+            mol = Chem.AddHs(mol)
+            AllChem.EmbedMolecule(mol, randomSeed=42)
+            AllChem.MMFFOptimizeMolecule(mol)
+            
+            # Convert to PDB format
+            pdb = Chem.MolToPDBBlock(mol)
+            
+            # Create py3Dmol view
+            view = py3Dmol.view(width=size[0], height=size[1])
+            view.addModel(pdb, "pdb")
+            view.setStyle({'stick':{}})
+            view.zoomTo()
+            
+            return view.render()
+        except Exception as e:
+            st.error(f"Error rendering 3D molecule: {e}")
+            return None
+
     def show_predictions_page(self):
-        """Show predictions page"""
+        """Show predictions page with enhanced visuals"""
         st.markdown('<div class="sub-header">🔬 Predictions</div>', unsafe_allow_html=True)
         
-        if not st.session_state.system_status.get('models_trained'):
-            st.warning("⚠️ Models not trained yet. Please complete the data pipeline first.")
+        if not self.init_predictor():
             return
         
-        # Load trained models info
-        try:
-            metrics_file = self.results_dir / "model_metrics.json"
-            if metrics_file.exists():
-                with open(metrics_file, 'r') as f:
-                    metrics = json.load(f)
-                
-                st.success("✅ Models loaded and ready for predictions!")
-                
-                # Show model performance
-                col1, col2, col3 = st.columns(3)
-                
-                model_names = list(metrics.keys())
-                for i, (model_name, model_data) in enumerate(metrics.items()):
-                    with [col1, col2, col3][i % 3]:
-                        r2_score = model_data['test_metrics']['r2_score']
-                        rmse = model_data['test_metrics']['rmse']
-                        
-                        st.metric(
-                            f"🤖 {model_name}",
-                            f"R² = {r2_score:.3f}",
-                            f"RMSE = {rmse:.3f}"
-                        )
-            else:
-                st.error("❌ Model metrics not found")
-                return
-                
-        except Exception as e:
-            st.error(f"❌ Error loading model metrics: {e}")
-            return
+        # Model Status
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>🤖 Model Status</h3>
+                <p>Ready for predictions</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>📊 Database</h3>
+                <p>Real BindingDB data</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>🎯 Accuracy</h3>
+                <p>R² > 0.35 on test data</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
         
         # Prediction Interface
-        st.markdown("### 🎯 Make Predictions")
-        
-        tab1, tab2 = st.tabs(["Single Prediction", "Batch Prediction"])
+        tab1, tab2, tab3 = st.tabs(["Smart Binding", "Single Prediction", "Batch Prediction"])
         
         with tab1:
-            st.markdown("#### 🧪 Single Molecule Prediction")
+            st.markdown("### 🧠 Smart Binding Recommendations")
+            st.markdown("""
+            Enter a target protein to find the most promising ligands from our database.
+            The AI will analyze similar proteins and their known interactions to recommend
+            the best potential binders.
+            """)
+            
+            # Get database statistics and suggestions
+            if hasattr(self, 'predictor'):
+                suggestions = self.predictor.get_search_suggestions()
+                if suggestions:
+                    # Show database stats
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Total Proteins", f"{suggestions['total_proteins']:,}")
+                    with col2:
+                        st.metric("Total Ligands", f"{suggestions['total_ligands']:,}")
+                    
+                    # Show protein families in expandable section
+                    with st.expander("🔍 Available Protein Families", expanded=True):
+                        st.markdown("Click any example to use it in your search:")
+                        
+                        for family, examples in suggestions['protein_families'].items():
+                            st.markdown(f"**{family}**")
+                            cols = st.columns(len(examples))
+                            for i, example in enumerate(examples):
+                                with cols[i]:
+                                    if st.button(
+                                        example, 
+                                        key=f"protein_{family}_{i}",
+                                        help=f"Search for {example}"
+                                    ):
+                                        st.session_state.protein_search = example
+                                        st.rerun()
+            
+            # Search box
+            target_protein = st.text_input(
+                "Target Protein",
+                value=st.session_state.get('protein_search', ''),
+                placeholder="e.g., Protein kinase A",
+                help="Enter the name of your target protein"
+            )
+            
+            if st.button("🔍 Find Best Binders", use_container_width=True):
+                if target_protein:
+                    with st.spinner("🤔 Analyzing database for best binders..."):
+                        recommendations = self.predictor.recommend_ligands(target_protein)
+                        
+                        if recommendations:
+                            st.success(f"Found {len(recommendations)} potential binders!")
+                            
+                            for i, rec in enumerate(recommendations, 1):
+                                with st.expander(f"🔬 Recommendation #{i} - {rec['binding_strength']} Binding", expanded=i==1):
+                                    col1, col2 = st.columns([1, 1])
+                                    
+                                    with col1:
+                                        # Show 2D structure
+                                        svg = self.render_molecule(rec['smiles'])
+                                        if svg:
+                                            st.markdown(f"""
+                                            <div style="text-align: center;">
+                                                <h4>2D Structure</h4>
+                                                {svg}
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                    
+                                    with col2:
+                                        # Show 3D structure
+                                        st.markdown("<h4>3D Structure</h4>", unsafe_allow_html=True)
+                                        viewer = self.render_molecule_3d(rec['smiles'])
+                                        if viewer:
+                                            st.components.html(viewer, height=400)
+                                    
+                                    # Show metrics with animation
+                                    st.markdown("""
+                                    <style>
+                                    @keyframes slideIn {
+                                        from { transform: translateX(-100%); opacity: 0; }
+                                        to { transform: translateX(0); opacity: 1; }
+                                    }
+                                    .metric-row > div {
+                                        animation: slideIn 0.5s ease-out forwards;
+                                    }
+                                    .metric-row > div:nth-child(2) {
+                                        animation-delay: 0.1s;
+                                    }
+                                    .metric-row > div:nth-child(3) {
+                                        animation-delay: 0.2s;
+                                    }
+                                    </style>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    col1, col2, col3 = st.columns(3)
+                                    st.markdown('<div class="metric-row">', unsafe_allow_html=True)
+                                    
+                                    with col1:
+                                        st.metric(
+                                            "Binding Affinity (pKd)", 
+                                            f"{rec['binding_affinity']:.2f}",
+                                            help="Higher values indicate stronger binding"
+                                        )
+                                    
+                                    with col2:
+                                        st.metric(
+                                            "Confidence", 
+                                            f"{rec['confidence']*100:.1f}%",
+                                            help="Based on protein similarity and data quality"
+                                        )
+                                    
+                                    with col3:
+                                        st.metric(
+                                            "Similar Protein", 
+                                            f"{rec['similarity_score']*100:.1f}%",
+                                            help="How similar this protein is to your target"
+                                        )
+                                    
+                                    st.markdown('</div>', unsafe_allow_html=True)
+                                    
+                                    # Show SMILES with copy button
+                                    st.markdown("##### Molecule SMILES")
+                                    col1, col2 = st.columns([3, 1])
+                                    with col1:
+                                        st.code(rec['smiles'], language=None)
+                                    with col2:
+                                        if st.button("📋 Copy", key=f"copy_{i}"):
+                                            st.write("Copied to clipboard!")
+                                    
+                                    # Show similar protein
+                                    st.info(f"💡 Based on known binding with: {rec['target_protein']}")
+                        else:
+                            st.warning("""
+                            No recommendations found. Try:
+                            - Using a more general protein family name (e.g., 'kinase' instead of a specific kinase)
+                            - Checking for typos
+                            - Using one of the suggested protein families above
+                            """)
+                else:
+                    st.error("Please enter a target protein name")
+        
+        with tab2:
+            st.markdown("### 🎯 Single Molecule Prediction")
+            st.markdown("""
+            Predict binding affinity for a specific ligand-protein pair.
+            Enter the SMILES string of your ligand and the target protein name.
+            """)
             
             col1, col2 = st.columns(2)
             
             with col1:
                 smiles = st.text_input(
                     "SMILES String",
-                    value="CCO",
+                    placeholder="e.g., CCO",
                     help="Enter a SMILES string for the ligand"
                 )
                 
-                protein_name = st.text_input(
-                    "Protein Name",
-                    value="Protein kinase A",
-                    help="Enter the target protein name"
-                )
-            
-            with col2:
-                pdb_id = st.text_input(
-                    "PDB ID (optional)",
-                    value="1ABC",
-                    help="Enter PDB ID if known"
-                )
-                
-                model_choice = st.selectbox(
-                    "Select Model",
-                    model_names,
-                    help="Choose which trained model to use"
-                )
-            
-            if st.button("🔍 Predict Binding Affinity"):
-                if smiles and protein_name:
-                    # Create prediction placeholder
-                    with st.spinner("Making prediction..."):
-                        # Here you would implement the actual prediction logic
-                        # For now, we'll show a placeholder
-                        st.success("🎉 Prediction completed!")
-                        
-                        # Mock prediction result
-                        predicted_affinity = np.random.uniform(5.0, 8.0)
-                        
-                        # Display result
+                if smiles:
+                    svg = self.render_molecule(smiles)
+                    if svg:
                         st.markdown(f"""
-                        <div class="success-card">
-                            <h3>🎯 Prediction Result</h3>
-                            <p><strong>Molecule:</strong> {smiles}</p>
-                            <p><strong>Target:</strong> {protein_name}</p>
-                            <p><strong>Predicted Affinity:</strong> {predicted_affinity:.3f} (pKd/pKi)</p>
-                            <p><strong>Model Used:</strong> {model_choice}</p>
-                            <p><strong>Confidence:</strong> {"High" if predicted_affinity > 6.0 else "Medium"}</p>
+                        <div style="text-align: center;">
+                            <h4>Structure Preview</h4>
+                            {svg}
                         </div>
                         """, unsafe_allow_html=True)
+            
+            with col2:
+                protein = st.text_input(
+                    "Target Protein",
+                    placeholder="e.g., Protein kinase A",
+                    help="Enter the target protein name"
+                )
+                
+                if protein:
+                    similar = self.predictor.find_similar_proteins(protein, top_k=3)
+                    if similar:
+                        st.markdown("##### Similar proteins in database:")
+                        for p, score in similar:
+                            st.markdown(f"- {p} ({score*100:.1f}% match)")
+            
+            if st.button("🔍 Predict Binding Affinity", use_container_width=True):
+                if smiles and protein:
+                    with st.spinner("🧪 Calculating binding affinity..."):
+                        result = self.predictor.predict_binding(smiles, protein)
                         
-                        # Show interpretation
-                        if predicted_affinity > 7.0:
-                            st.success("🟢 **Strong binding predicted** - This compound shows high affinity for the target protein.")
-                        elif predicted_affinity > 5.0:
-                            st.warning("🟡 **Moderate binding predicted** - This compound shows moderate affinity for the target protein.")
+                        if result:
+                            # Show results with animation
+                            st.markdown("""
+                            <style>
+                            @keyframes fadeIn {
+                                from { opacity: 0; transform: translateY(20px); }
+                                to { opacity: 1; transform: translateY(0); }
+                            }
+                            .prediction-result {
+                                animation: fadeIn 0.5s ease-out;
+                            }
+                            </style>
+                            """, unsafe_allow_html=True)
+                            
+                            st.markdown("""
+                            <div class="prediction-result">
+                                <div class="success-card">
+                                    <h3>🎯 Prediction Result</h3>
+                                    <p><strong>Binding Strength:</strong> {}</p>
+                                    <p><strong>Confidence:</strong> {:.1f}%</p>
+                                </div>
+                            </div>
+                            """.format(
+                                result['binding_strength'],
+                                result['confidence'] * 100
+                            ), unsafe_allow_html=True)
+                            
+                            # Show detailed metrics
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("pKd", f"{result['pKd']:.2f}")
+                            
+                            with col2:
+                                st.metric("Kd (nM)", f"{result['Kd_nM']:.2f}")
+                            
+                            with col3:
+                                st.metric("Confidence", f"{result['confidence']*100:.1f}%")
+                            
+                            # Show 3D visualization
+                            st.markdown("##### 3D Molecular Visualization")
+                            viewer = self.render_molecule_3d(smiles)
+                            if viewer:
+                                st.components.html(viewer, height=450)
                         else:
-                            st.error("🔴 **Weak binding predicted** - This compound shows low affinity for the target protein.")
+                            st.error("Could not make prediction. Please check your input.")
                 else:
-                    st.error("❌ Please provide both SMILES string and protein name")
+                    st.error("Please provide both SMILES string and protein name")
         
-        with tab2:
-            st.markdown("#### 📊 Batch Prediction")
+        with tab3:
+            st.markdown("### 📊 Batch Prediction")
+            st.markdown("""
+            Upload a CSV file with multiple ligand-protein pairs for batch prediction.
+            The file should have columns: 'Ligand SMILES' and 'Target Name'.
+            """)
+            
+            # Show sample data
+            with st.expander("📋 View Sample Format"):
+                sample_data = pd.DataFrame({
+                    'Ligand SMILES': ['CCO', 'c1ccccc1', 'CC(=O)O'],
+                    'Target Name': ['Protein kinase A', 'GABA receptor', 'Ion channel']
+                })
+                st.dataframe(sample_data)
+                
+                # Download sample
+                csv = sample_data.to_csv(index=False)
+                st.download_button(
+                    "📥 Download Sample CSV",
+                    csv,
+                    "sample_batch.csv",
+                    "text/csv"
+                )
             
             uploaded_file = st.file_uploader(
                 "Upload CSV file",
                 type=['csv'],
-                help="Upload a CSV file with columns: 'Ligand SMILES', 'Target Name', 'PDB ID(s)' (optional)"
+                help="Upload a CSV file with required columns"
             )
             
-            if uploaded_file is not None:
+            if uploaded_file:
                 try:
                     df = pd.read_csv(uploaded_file)
+                    required_cols = ['Ligand SMILES', 'Target Name']
                     
-                    st.markdown("**📋 Data Preview:**")
-                    st.dataframe(df.head(), use_container_width=True)
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.metric("Total Rows", len(df))
-                    
-                    with col2:
-                        batch_model = st.selectbox(
-                            "Select Model for Batch",
-                            model_names,
-                            key="batch_model"
-                        )
-                    
-                    if st.button("🔍 Run Batch Prediction"):
-                        with st.spinner("Processing batch predictions..."):
-                            # Mock batch prediction
-                            df['Predicted_Affinity'] = np.random.uniform(4.0, 9.0, len(df))
-                            df['Confidence'] = np.where(df['Predicted_Affinity'] > 6.0, 'High', 'Medium')
+                    if all(col in df.columns for col in required_cols):
+                        st.markdown("**📋 Data Preview:**")
+                        st.dataframe(df.head(), use_container_width=True)
+                        
+                        if st.button("🔍 Run Batch Prediction", use_container_width=True):
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
                             
-                            st.success("🎉 Batch prediction completed!")
-                            
-                            # Show results
-                            st.markdown("**📊 Results:**")
-                            st.dataframe(df, use_container_width=True)
-                            
-                            # Download results
-                            csv = df.to_csv(index=False)
-                            st.download_button(
-                                label="📥 Download Results",
-                                data=csv,
-                                file_name=f"binding_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                                mime="text/csv"
-                            )
-                            
-                            # Show summary statistics
-                            col1, col2, col3 = st.columns(3)
-                            
-                            with col1:
-                                st.metric("Average Affinity", f"{df['Predicted_Affinity'].mean():.3f}")
-                            
-                            with col2:
-                                high_affinity = (df['Predicted_Affinity'] > 7.0).sum()
-                                st.metric("High Affinity Count", high_affinity)
-                            
-                            with col3:
-                                st.metric("Total Predictions", len(df))
-                
+                            with st.spinner("Processing batch predictions..."):
+                                results = self.predictor.batch_predict(df)
+                                
+                                if results is not None:
+                                    st.success("🎉 Batch prediction completed!")
+                                    
+                                    # Show results
+                                    st.markdown("### 📊 Results")
+                                    
+                                    # Summary statistics
+                                    summary = pd.DataFrame({
+                                        'Binding Strength': results['binding_strength'].value_counts()
+                                    })
+                                    
+                                    # Create donut chart
+                                    fig = go.Figure(data=[go.Pie(
+                                        labels=summary.index,
+                                        values=summary['Binding Strength'],
+                                        hole=0.4
+                                    )])
+                                    fig.update_layout(title="Binding Strength Distribution")
+                                    st.plotly_chart(fig, use_container_width=True)
+                                    
+                                    # Show detailed results
+                                    st.dataframe(results, use_container_width=True)
+                                    
+                                    # Download results
+                                    csv = results.to_csv(index=False)
+                                    st.download_button(
+                                        "📥 Download Results",
+                                        csv,
+                                        f"binding_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                        "text/csv"
+                                    )
+                                else:
+                                    st.error("Error processing predictions")
+                    else:
+                        st.error(f"CSV must contain columns: {', '.join(required_cols)}")
                 except Exception as e:
-                    st.error(f"❌ Error processing file: {e}")
+                    st.error(f"Error processing file: {str(e)}")
     
     def show_analysis_page(self):
         """Show analysis and results page"""

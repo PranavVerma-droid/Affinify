@@ -216,8 +216,30 @@ class AffinifyCLI:
             subset_size = min(max_rows, len(df))
             if len(df) > 0:
                 df_subset = df.sample(n=subset_size, random_state=42)
+                
+                # Save original data for prediction system
                 df_subset.to_csv(processed_file, index=False)
                 self.logger.info(f"Saved BindingDB subset with {len(df_subset)} rows")
+                
+                # Create data summary
+                summary = {
+                    'total_proteins': df_subset['Target Name'].nunique(),
+                    'total_ligands': len(df_subset),
+                    'affinity_range': {
+                        col: {
+                            'min': float(df_subset[col].min()),
+                            'max': float(df_subset[col].max()),
+                            'mean': float(df_subset[col].mean()),
+                            'median': float(df_subset[col].median())
+                        } for col in affinity_cols if col in df_subset.columns
+                    }
+                }
+                
+                # Save summary
+                summary_file = Path("data/processed/data_summary.json")
+                with open(summary_file, 'w') as f:
+                    json.dump(summary, f, indent=2)
+                
                 return df_subset
             else:
                 self.logger.warning("No valid data remaining after cleaning")
