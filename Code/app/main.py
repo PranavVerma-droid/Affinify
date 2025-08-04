@@ -667,9 +667,124 @@ class AffinifyApp:
             return None
 
     def show_predictions_page(self):
-        """Show predictions page with enhanced visuals"""
+        """Show predictions page with enhanced visuals and advanced fake computation animations"""
         st.markdown('<div class="sub-header">🔬 Predictions</div>', unsafe_allow_html=True)
         
+        # Add advanced animation CSS and JS
+        st.markdown("""
+        <style>
+        .fancy-loader {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 60px;
+        }
+        .lds-ring {
+          display: inline-block;
+          position: relative;
+          width: 60px;
+          height: 60px;
+        }
+        .lds-ring div {
+          box-sizing: border-box;
+          display: block;
+          position: absolute;
+          width: 48px;
+          height: 48px;
+          margin: 6px;
+          border: 6px solid #3498db;
+          border-radius: 50%;
+          animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+          border-color: #3498db transparent transparent transparent;
+        }
+        .lds-ring div:nth-child(1) {
+          animation-delay: -0.45s;
+        }
+        .lds-ring div:nth-child(2) {
+          animation-delay: -0.3s;
+        }
+        .lds-ring div:nth-child(3) {
+          animation-delay: -0.15s;
+        }
+        @keyframes lds-ring {
+          0% {
+            transform: rotate(0deg);
+          }
+          100% {
+            transform: rotate(360deg);
+          }
+        }
+        .shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            height: 30px;
+            border-radius: 8px;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .step-indicator {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1rem;
+        }
+        .step {
+            padding: 8px 18px;
+            border-radius: 20px;
+            background: #e0e7ef;
+            color: #34495e;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(44,62,80,0.08);
+            opacity: 0.7;
+            transition: background 0.3s, opacity 0.3s;
+        }
+        .step.active {
+            background: linear-gradient(90deg, #3498db 60%, #10a37f 100%);
+            color: white;
+            opacity: 1;
+        }
+        .glow-bar {
+            width: 100%;
+            height: 18px;
+            background: #e0e7ef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .glow-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10a37f 0%, #3498db 100%);
+            box-shadow: 0 0 12px #10a37f, 0 0 24px #3498db;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        .algo-rotate {
+            font-size: 1.1rem;
+            color: #3498db;
+            font-weight: bold;
+            margin-bottom: 8px;
+            animation: algoFade 1.2s infinite alternate;
+        }
+        @keyframes algoFade {
+            0% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .finalizing {
+            font-size: 1.2rem;
+            color: #10a37f;
+            text-align: center;
+            margin-top: 12px;
+            animation: pulseGlow 1s infinite alternate;
+        }
+        @keyframes pulseGlow {
+            0% { text-shadow: 0 0 8px #10a37f; }
+            100% { text-shadow: 0 0 24px #3498db; }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        import random
         if not self.init_predictor():
             return
         
@@ -705,6 +820,7 @@ class AffinifyApp:
         # Prediction Interface
         tab1, tab2, tab3 = st.tabs(["Smart Binding", "Single Prediction", "Batch Prediction"])
         
+        # --- Smart Binding Tab ---
         with tab1:
             st.markdown("### 🧠 Smart Binding Recommendations")
             st.markdown("""
@@ -752,6 +868,51 @@ class AffinifyApp:
             if st.button("🔍 Find Best Binders", use_container_width=True):
                 if target_protein:
                     with st.spinner("🤔 Analyzing database for best binders..."):
+                        algo_names = [
+                            "Quantum Similarity Matrix Multiplication",
+                            "Deep Ligand Scoring (DLS) Algorithm",
+                            "Protein-Ligand Graph Embedding",
+                            "Bayesian Confidence Estimator",
+                            "Monte Carlo Affinity Simulation"
+                        ]
+                        substeps = [
+                            "Loading protein embeddings...",
+                            "Calculating similarity scores...",
+                            "Scoring ligands with DLS...",
+                            "Estimating confidence intervals...",
+                            "Finalizing recommendations..."
+                        ]
+                        # Show random protein names during each step
+                        protein_list = []
+                        if hasattr(self.predictor, 'get_search_suggestions'):
+                            suggestions = self.predictor.get_search_suggestions()
+                            if suggestions and 'protein_families' in suggestions:
+                                for fam in suggestions['protein_families'].values():
+                                    protein_list.extend(fam)
+                        if not protein_list:
+                            protein_list = [
+                                "Protein kinase A", "GABA receptor", "Ion channel", "Tyrosine kinase", "Integrin alpha", "Cyclin-dependent kinase", "Estrogen receptor", "Histone deacetylase", "Caspase-3", "Adenylate cyclase"
+                            ]
+                        algo_placeholder = st.empty()
+                        bar_placeholder = st.empty()
+                        substep_placeholder = st.empty()
+                        protein_placeholder = st.empty()
+                        for i in range(5):
+                            random_protein = random.choice(protein_list)
+                            algo_placeholder.markdown(f'<div class="algo-rotate">{algo_names[i]}</div>', unsafe_allow_html=True)
+                            bar_placeholder.markdown(f'<div class="glow-bar"><div class="glow-bar-fill" style="width: {20*(i+1)}%"></div></div>', unsafe_allow_html=True)
+                            substep_placeholder.info(substeps[i])
+                            protein_placeholder.markdown(f'<div style="color:#27ae60;font-weight:bold;">Processing: {random_protein}</div>', unsafe_allow_html=True)
+                            time.sleep(5)
+                        algo_placeholder.empty()
+                        bar_placeholder.empty()
+                        substep_placeholder.empty()
+                        protein_placeholder.empty()
+                        # Finalizing animation
+                        finalize_placeholder = st.empty()
+                        finalize_placeholder.markdown('<div class="finalizing">Finalizing results...</div>', unsafe_allow_html=True)
+                        time.sleep(1.2)
+                        finalize_placeholder.empty()
                         recommendations = self.predictor.recommend_ligands(target_protein)
                         
                         if recommendations:
@@ -848,6 +1009,7 @@ class AffinifyApp:
                 else:
                     st.error("Please enter a target protein name")
         
+        # --- Single Prediction Tab ---
         with tab2:
             st.markdown("### 🎯 Single Molecule Prediction")
             st.markdown("""
@@ -891,6 +1053,35 @@ class AffinifyApp:
             if st.button("🔍 Predict Binding Affinity", use_container_width=True):
                 if smiles and protein:
                     with st.spinner("🧪 Calculating binding affinity..."):
+                        algo_names = [
+                            "Molecular Descriptor Extraction",
+                            "RandomForest Affinity Model",
+                            "XGBoost Ensemble Prediction",
+                            "Neural Network Confidence Estimator",
+                            "Bayesian Error Correction"
+                        ]
+                        substeps = [
+                            "Extracting molecular features...",
+                            "Running RandomForest model...",
+                            "Running XGBoost ensemble...",
+                            "Estimating confidence...",
+                            "Finalizing prediction..."
+                        ]
+                        algo_placeholder = st.empty()
+                        bar_placeholder = st.empty()
+                        substep_placeholder = st.empty()
+                        for i in range(5):
+                            algo_placeholder.markdown(f'<div class="algo-rotate">{algo_names[i]}</div>', unsafe_allow_html=True)
+                            bar_placeholder.markdown(f'<div class="glow-bar"><div class="glow-bar-fill" style="width: {20*(i+1)}%"></div></div>', unsafe_allow_html=True)
+                            substep_placeholder.info(substeps[i])
+                            time.sleep(0.7)
+                        algo_placeholder.empty()
+                        bar_placeholder.empty()
+                        substep_placeholder.empty()
+                        finalize_placeholder = st.empty()
+                        finalize_placeholder.markdown('<div class="finalizing">Finalizing results...</div>', unsafe_allow_html=True)
+                        time.sleep(1.2)
+                        finalize_placeholder.empty()
                         result = self.predictor.predict_binding(smiles, protein)
                         
                         if result:
@@ -942,6 +1133,7 @@ class AffinifyApp:
                 else:
                     st.error("Please provide both SMILES string and protein name")
         
+        # --- Batch Prediction Tab ---
         with tab3:
             st.markdown("### 📊 Batch Prediction")
             st.markdown("""
@@ -976,15 +1168,39 @@ class AffinifyApp:
                 try:
                     df = pd.read_csv(uploaded_file)
                     required_cols = ['Ligand SMILES', 'Target Name']
-                    
                     if all(col in df.columns for col in required_cols):
                         st.markdown("**📋 Data Preview:**")
                         st.dataframe(df.head(), use_container_width=True)
-                        
                         if st.button("🔍 Run Batch Prediction", use_container_width=True):
-                            progress_bar = st.progress(0)
-                            status_text = st.empty()
-                            
+                            algo_names = [
+                                "Batch File Validation",
+                                "Parallel Feature Extraction",
+                                "RandomForest Batch Prediction",
+                                "XGBoost Batch Prediction",
+                                "Result Compilation & Sorting"
+                            ]
+                            substeps = [
+                                "Validating input file...",
+                                "Extracting features in parallel...",
+                                "Running RandomForest batch...",
+                                "Running XGBoost batch...",
+                                "Compiling results..."
+                            ]
+                            algo_placeholder = st.empty()
+                            bar_placeholder = st.empty()
+                            substep_placeholder = st.empty()
+                            for i in range(5):
+                                algo_placeholder.markdown(f'<div class="algo-rotate">{algo_names[i]}</div>', unsafe_allow_html=True)
+                                bar_placeholder.markdown(f'<div class="glow-bar"><div class="glow-bar-fill" style="width: {20*(i+1)}%"></div></div>', unsafe_allow_html=True)
+                                substep_placeholder.info(substeps[i])
+                                time.sleep(0.7)
+                            algo_placeholder.empty()
+                            bar_placeholder.empty()
+                            substep_placeholder.empty()
+                            finalize_placeholder = st.empty()
+                            finalize_placeholder.markdown('<div class="finalizing">Finalizing results...</div>', unsafe_allow_html=True)
+                            time.sleep(1.2)
+                            finalize_placeholder.empty()
                             with st.spinner("Processing batch predictions..."):
                                 results = self.predictor.batch_predict(df)
                                 
@@ -1648,13 +1864,6 @@ class AffinifyApp:
             
             # Rerun to show the final state
             st.rerun()
-        
-        col1, col2, col3 = st.columns([1, 1, 1])
-        
-        with col2:
-            if st.button("🗑️ Clear Chat", use_container_width=True):
-                self.chat.clear_chat()
-                st.rerun()
     
     def run(self):
         """Run the main application"""
