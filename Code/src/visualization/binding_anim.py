@@ -37,7 +37,7 @@ class ProteinLigandAnimator:
         self.output_dir.mkdir(exist_ok=True)
         
         # Animation parameters
-        self.fps = 30  # Reduced for faster processing
+        self.fps = 20  # Reduced for faster processing
         self.duration = 8  # Reduced duration
         self.frames = self.fps * self.duration
         
@@ -161,17 +161,37 @@ class ProteinLigandAnimator:
         def animate_frame(frame):
             """Animation function for each frame"""
             ax_main.clear()
-            ax_main.set_xlim([-8, 8])
-            ax_main.set_ylim([-8, 8])
-            ax_main.set_zlim([-8, 8])
-            ax_main.set_title("Protein-Ligand Binding Simulation", fontsize=16, pad=20)
             
             # Animation phases
             total_frames = self.frames
-            phase1_end = total_frames * 0.2  # Initial separation
-            phase2_end = total_frames * 0.6  # Approach
-            phase3_end = total_frames * 0.8  # Binding
-            phase4_end = total_frames * 1.0  # Bound state
+            phase1_end = total_frames * 0.15  # Initial separation
+            phase2_end = total_frames * 0.3   # Approach
+            phase3_end = total_frames * 0.45  # Initial binding (zoom in)
+            phase4_end = total_frames * 0.6   # Conformational adjustment
+            phase5_end = total_frames * 0.75  # Induced fit
+            phase6_end = total_frames * 0.9   # Stable complex
+            phase7_end = total_frames * 1.0   # Zoom out
+            
+            # Dynamic camera zoom based on animation phase
+            if frame < phase3_end:
+                # Normal view
+                zoom_factor = 8.0
+            elif frame < phase4_end:
+                # Zoom in during initial binding
+                t = (frame - phase3_end) / (phase4_end - phase3_end)
+                zoom_factor = 8.0 - 5.5 * (t * t * (3.0 - 2.0 * t))  # Smooth zoom in to 2.5
+            elif frame < phase6_end:
+                # Stay zoomed for detailed binding process
+                zoom_factor = 2.5
+            else:
+                # Zoom back out
+                t = (frame - phase6_end) / (phase7_end - phase6_end)
+                zoom_factor = 2.5 + 5.5 * (t * t * (3.0 - 2.0 * t))  # Smooth zoom out to 8.0
+            
+            ax_main.set_xlim([-zoom_factor, zoom_factor])
+            ax_main.set_ylim([-zoom_factor, zoom_factor])
+            ax_main.set_zlim([-zoom_factor, zoom_factor])
+            ax_main.set_title("Protein-Ligand Binding Simulation", fontsize=16, pad=20)
             
             if frame < phase1_end:
                 # Phase 1: Show separated molecules
@@ -195,27 +215,38 @@ class ProteinLigandAnimator:
                 protein_pos = np.array([-5 + 3 * ease_t, 0, 0])
                 ligand_pos = np.array([5 - 4 * ease_t, 0, 0])
                 
-                rotation_angle = t * 4 * np.pi
+                rotation_angle = t * 2 * np.pi  # Reduced rotation for more realistic movement
                 
             elif frame < phase3_end:
-                # Phase 3: Binding interaction
+                # Phase 3: Binding interaction - proper docking
                 t = (frame - phase2_end) / (phase3_end - phase2_end)
                 
-                # Final approach and binding
-                protein_pos = np.array([-2, 0.2 * np.sin(t * 8 * np.pi), 0])
-                ligand_pos = np.array([1 - 0.5 * t, 0.1 * np.sin(t * 10 * np.pi), 0])
+                # Create binding site cavity in protein
+                binding_site_pos = np.array([-1.5, 0, 0])
                 
-                rotation_angle = t * 6 * np.pi
+                # Ligand moves into the binding site
+                protein_pos = np.array([-2, 0, 0])
+                
+                # Smooth docking motion - ligand fits into binding site
+                start_pos = np.array([1, 0, 0])
+                end_pos = binding_site_pos + np.array([0.5, 0, 0])  # Slightly inside the binding site
+                
+                ease_t = t * t * (3.0 - 2.0 * t)  # Smooth step function for docking
+                ligand_pos = start_pos + ease_t * (end_pos - start_pos)
+                
+                # Orientation adjustment for proper binding
+                rotation_angle = t * np.pi  # Orient for binding
                 
             else:
-                # Phase 4: Bound state
+                # Phase 4: Bound state - connected complex
                 t = (frame - phase3_end) / (phase4_end - phase3_end)
                 
-                # Stable bound complex with slight movement
-                protein_pos = np.array([-2, 0.1 * np.sin(t * 4 * np.pi), 0])
-                ligand_pos = np.array([0.5, 0.05 * np.sin(t * 6 * np.pi), 0])
+                # Stable bound complex with minimal breathing motion
+                protein_pos = np.array([-2, 0.02 * np.sin(t * 2 * np.pi), 0])
+                binding_site_pos = np.array([-1.5, 0.02 * np.sin(t * 2 * np.pi), 0])
+                ligand_pos = binding_site_pos + np.array([0.5, 0.01 * np.sin(t * 3 * np.pi), 0])
                 
-                rotation_angle = t * 2 * np.pi
+                rotation_angle = np.pi + 0.1 * np.sin(t * 2 * np.pi)  # Slight breathing motion
                 
             # Draw protein
             protein_atoms = protein_structure['atoms'] + protein_pos
