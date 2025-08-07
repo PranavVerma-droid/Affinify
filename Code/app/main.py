@@ -12,6 +12,7 @@ import os
 import sys
 import subprocess
 import time
+import logging
 from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
@@ -34,11 +35,15 @@ from io import BytesIO
 # Import components.v1 explicitly
 from streamlit.components.v1 import html
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 try:
     from data_processing.data_collector import DataCollector
     from data_processing.feature_extractor import MolecularFeatureExtractor
     from models.ml_models import ModelTrainer
     from visualization.molecular_viz import MolecularVisualizer
+    from visualization.binding_anim import BindingAnimationManager
     from utils.ollama_chat import create_ollama_chat
 except ImportError as e:
     st.error(f"Error importing modules: {e}")
@@ -130,6 +135,14 @@ class AffinifyApp:
         
         # Initialize Ollama chat
         self.chat = create_ollama_chat()
+        
+        # Initialize binding animation manager
+        videos_dir = self.project_root / "videos"
+        try:
+            self.animation_manager = BindingAnimationManager(str(videos_dir))
+        except Exception as e:
+            logger.warning(f"Failed to initialize animation manager: {e}")
+            self.animation_manager = None
         
         # Initialize session state
         self.init_session_state()
@@ -996,6 +1009,37 @@ class AffinifyApp:
                                     with col2:
                                         if st.button("📋 Copy", key=f"copy_{i}"):
                                             st.write("Copied to clipboard!")
+                                    
+                                    # Add animation button for top recommendation
+                                    if i == 1 and self.animation_manager:
+                                        st.markdown("---")
+                                        st.markdown("##### 🎬 Binding Simulation")
+                                        
+                                        col1, col2 = st.columns([1, 1])
+                                        with col1:
+                                            if st.button("🎭 Play Animation", key=f"animate_{i}", use_container_width=True):
+                                                with st.spinner("🎬 Creating binding animation..."):
+                                                    video_path = self.animation_manager.create_binding_animation(rec, target_protein)
+                                                    
+                                                    if video_path and os.path.exists(video_path):
+                                                        st.success("Animation created successfully!")
+                                                        # Display the video
+                                                        st.video(video_path)
+                                                        
+                                                        # Provide download link
+                                                        with open(video_path, "rb") as file:
+                                                            btn = st.download_button(
+                                                                label="📥 Download Animation",
+                                                                data=file.read(),
+                                                                file_name=f"binding_animation_{rec['target_protein'][:10]}.mp4",
+                                                                mime="video/mp4",
+                                                                key=f"download_{i}"
+                                                            )
+                                                    else:
+                                                        st.error("Failed to create animation. Please try again.")
+                                        
+                                        with col2:
+                                            st.info("Watch the molecular binding process in 3D! The animation shows how the ligand approaches and binds to the protein target.")
                                     
                                     # Show similar protein
                                     st.info(f"💡 Based on known binding with: {rec['target_protein']}")
