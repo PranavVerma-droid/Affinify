@@ -52,3 +52,5 @@ Code/videos/
 __pycache__/
 Code/results/
 TODO.md
+Code/config/config.json
+Code/config/config.py

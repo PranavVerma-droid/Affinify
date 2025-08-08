@@ -5,14 +5,15 @@ A clean, unified web application for the Affinify protein-ligand binding affinit
 """
 
 import streamlit as st
+import sys
+import json
 import pandas as pd
 import numpy as np
-import json
-import os
-import sys
-import subprocess
-import time
 import logging
+import subprocess
+import os  # Ensure os is imported
+import time
+import random
 from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
@@ -138,8 +139,10 @@ class AffinifyApp:
         
         # Initialize binding animation manager
         videos_dir = self.project_root / "videos"
+        videos_dir.mkdir(exist_ok=True)  # Ensure videos directory exists
         try:
             self.animation_manager = BindingAnimationManager(str(videos_dir))
+            logger.info(f"Animation manager initialized with videos dir: {videos_dir}")
         except Exception as e:
             logger.warning(f"Failed to initialize animation manager: {e}")
             self.animation_manager = None
@@ -164,6 +167,14 @@ class AffinifyApp:
             st.session_state.ollama_available = False
         if 'protein_search' not in st.session_state:
             st.session_state.protein_search = ''
+        if 'animation_requested' not in st.session_state:
+            st.session_state.animation_requested = False
+        if 'animation_path' not in st.session_state:
+            st.session_state.animation_path = None
+        if 'animation_rec' not in st.session_state:
+            st.session_state.animation_rec = None
+        if 'target_protein' not in st.session_state:
+            st.session_state.target_protein = None
     
     def load_system_status(self):
         """Load current system status"""
@@ -174,6 +185,13 @@ class AffinifyApp:
             'last_update': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         st.session_state.system_status = status
+        
+        # Clean up old animation files
+        if hasattr(self, 'animation_manager') and self.animation_manager:
+            try:
+                self.animation_manager.cleanup_old_videos(max_age_hours=48)
+            except Exception as e:
+                logger.warning(f"Failed to clean up old animations: {e}")
     
     def check_bindingdb_data(self):
         """Check if BindingDB data is available"""
@@ -679,9 +697,91 @@ class AffinifyApp:
             logger.error(f"Error rendering 3D molecule: {e}")
             return None
 
+    def handle_animation_request(self, rec, target_protein):
+        """
+        Handle animation request and store in session state
+        
+        Args:
+            rec: Recommendation dictionary
+            target_protein: Target protein name
+        """
+        # Store the request in session state
+        st.session_state.animation_requested = True
+        st.session_state.animation_rec = rec
+        st.session_state.target_protein = target_protein
+        st.session_state.animation_path = None  # Reset any previous animation
+        
+        # Log the request
+        logger.info(f"Animation requested for {rec['target_protein']} with {target_protein}")
+        
+    def generate_animation(self):
+        """Generate animation based on session state request"""
+        if not st.session_state.animation_requested or not st.session_state.animation_rec:
+            return
+            
+        # Create a placeholder for the status
+        status_placeholder = st.empty()
+        status_placeholder.info("🎬 Generating animation... (this may take 20-30 seconds)")
+        
+        try:
+            # Generate the animation
+            rec = st.session_state.animation_rec
+            target = st.session_state.target_protein
+            
+            video_path = self.animation_manager.create_binding_animation(rec, target)
+            
+            # Store the result in session state
+            st.session_state.animation_path = video_path
+            st.session_state.animation_requested = False  # Reset request flag
+            
+            # Update status
+            if video_path and os.path.exists(video_path):
+                status_placeholder.success("Animation created successfully!")
+            else:
+                status_placeholder.error("Failed to create animation. Please try again.")
+                
+        except Exception as e:
+            status_placeholder.error(f"Error generating animation: {str(e)}")
+            st.session_state.animation_requested = False
+    
     def show_predictions_page(self):
         """Show predictions page with enhanced visuals and advanced fake computation animations"""
         st.markdown('<div class="sub-header">🔬 Predictions</div>', unsafe_allow_html=True)
+        
+        # Check if we need to generate an animation
+        if st.session_state.animation_requested:
+            self.generate_animation()
+            
+        # Display animation if it exists
+        if st.session_state.animation_path and os.path.exists(st.session_state.animation_path):
+            st.markdown("### 🎬 Binding Animation")
+            file_path = st.session_state.animation_path
+            file_extension = os.path.splitext(file_path)[1].lower()
+            
+            if file_extension == '.gif':
+                # For GIF files
+                with open(file_path, "rb") as file:
+                    contents = file.read()
+                st.image(contents, caption="Protein-Ligand Binding Animation")
+            else:
+                # For video files
+                st.video(file_path)
+                
+            # Provide download link
+            with open(file_path, "rb") as file:
+                st.download_button(
+                    label="📥 Download Animation",
+                    data=file.read(),
+                    file_name=f"binding_animation.{file_extension[1:]}",
+                    mime=f"{'image/gif' if file_extension == '.gif' else 'video/mp4'}"
+                )
+            
+            # Add a button to clear the animation
+            if st.button("❌ Clear Animation"):
+                st.session_state.animation_path = None
+                st.rerun()
+                
+            st.markdown("---")
         
         # Add advanced animation CSS and JS
         st.markdown("""
@@ -932,6 +1032,8 @@ class AffinifyApp:
                             st.success(f"Found {len(recommendations)} potential binders!")
                             
                             for i, rec in enumerate(recommendations, 1):
+                                # Store recommendation in session state for persistence
+                                st.session_state[f"rec_{i}"] = rec
                                 with st.expander(f"🔬 Recommendation #{i} - {rec['binding_strength']} Binding", expanded=i==1):
                                     col1, col2 = st.columns([1, 1])
                                     
@@ -1018,25 +1120,9 @@ class AffinifyApp:
                                         col1, col2 = st.columns([1, 1])
                                         with col1:
                                             if st.button("🎭 Play Animation", key=f"animate_{i}", use_container_width=True):
-                                                with st.spinner("🎬 Creating binding animation..."):
-                                                    video_path = self.animation_manager.create_binding_animation(rec, target_protein)
-                                                    
-                                                    if video_path and os.path.exists(video_path):
-                                                        st.success("Animation created successfully!")
-                                                        # Display the video
-                                                        st.video(video_path)
-                                                        
-                                                        # Provide download link
-                                                        with open(video_path, "rb") as file:
-                                                            btn = st.download_button(
-                                                                label="📥 Download Animation",
-                                                                data=file.read(),
-                                                                file_name=f"binding_animation_{rec['target_protein'][:10]}.mp4",
-                                                                mime="video/mp4",
-                                                                key=f"download_{i}"
-                                                            )
-                                                    else:
-                                                        st.error("Failed to create animation. Please try again.")
+                                                # Handle the animation request
+                                                self.handle_animation_request(rec, target_protein)
+                                                st.rerun()  # Rerun to trigger the animation generation
                                         
                                         with col2:
                                             st.info("Watch the molecular binding process in 3D! The animation shows how the ligand approaches and binds to the protein target.")

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Binding Animation Module for Affinify
-Creates 3D animated visualizations of protein-ligand binding interactions
+Creates 3D animated visualizations of protein-ligand binding interactions.
+This version uses RDKit to generate and display accurate molecular structures.
 """
 
 import numpy as np
@@ -17,11 +18,35 @@ import uuid
 import logging
 from typing import Tuple, Dict, Optional, List
 import random
-import colorsys
 import time
+import os
+
+# Try to import RDKit, which is essential for molecular processing
+try:
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+except ImportError:
+    print("RDKit not found. Please install it: pip install rdkit-pypi")
+    exit()
 
 # Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Define CPK colors for common elements
+ATOM_COLORS = {
+    'C': '#606060',  # Carbon (gray)
+    'O': '#FF0D0D',  # Oxygen (red)
+    'N': '#0000FF',  # Nitrogen (blue)
+    'H': '#CCCCCC',  # Hydrogen (light gray)
+    'S': '#FFFF30',  # Sulfur (yellow)
+    'P': '#FF8000',  # Phosphorus (orange)
+    'F': '#90E050',  # Fluorine (light green)
+    'Cl': '#1FF01F', # Chlorine (green)
+    'Br': '#A62929', # Bromine (dark red)
+    'I': '#940094',  # Iodine (purple)
+    'DEFAULT': '#FFC0CB' # Default (pink)
+}
 
 class ProteinLigandAnimator:
     """Creates animated visualizations of protein-ligand binding interactions"""
@@ -34,78 +59,93 @@ class ProteinLigandAnimator:
             output_dir: Directory to save animation videos
         """
         self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Animation parameters
-        self.fps = 20  # Reduced for faster processing
-        self.duration = 8  # Reduced duration
+        self.fps = 30
+        self.duration = 8
         self.frames = self.fps * self.duration
         
-        # Color schemes
-        self.protein_colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6']
-        self.ligand_colors = ['#e67e22', '#1abc9c', '#34495e', '#e91e63', '#ff5722']
-        
-    def create_molecule_structure(self, size: str = "medium") -> Dict:
+    def smiles_to_3d_structure(self, smiles: str) -> Optional[Dict]:
         """
-        Create a simplified 3D molecular structure representation.
+        Convert a SMILES string to a 3D molecular structure using RDKit.
         
         Args:
-            size: Size of the molecule ("small", "medium", "large")
+            smiles: The SMILES string of the molecule.
             
         Returns:
-            Dictionary containing atom positions and bonds
+            A dictionary with atom symbols, positions, and bonds, or None on failure.
         """
-        if size == "small":
-            n_atoms = random.randint(5, 12)
-        elif size == "medium":
-            n_atoms = random.randint(15, 30)
-        else:  # large
-            n_atoms = random.randint(40, 80)
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if not mol:
+                logger.error(f"Could not create molecule from SMILES: {smiles}")
+                return None
+
+            mol = Chem.AddHs(mol)
+            AllChem.EmbedMolecule(mol, AllChem.ETKDG())
+            try:
+                AllChem.UFFOptimizeMolecule(mol)
+            except Exception as e:
+                logger.warning(f"Could not optimize molecule geometry: {e}")
+
+            conf = mol.GetConformer()
+            atoms = []
+            symbols = []
+            for atom in mol.GetAtoms():
+                pos = conf.GetAtomPosition(atom.GetIdx())
+                atoms.append([pos.x, pos.y, pos.z])
+                symbols.append(atom.GetSymbol())
+
+            bonds = []
+            for bond in mol.GetBonds():
+                bonds.append([bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()])
+
+            return {
+                'atoms': np.array(atoms),
+                'symbols': symbols,
+                'bonds': bonds,
+                'n_atoms': len(atoms)
+            }
+        except Exception as e:
+            logger.error(f"An error occurred in smiles_to_3d_structure: {e}")
+            return None
+
+    def create_protein_structure(self, n_atoms: int = 80) -> Dict:
+        """
+        Create a randomized, simplified 3D protein structure representation.
+        
+        Args:
+            n_atoms: Number of atoms to generate for the protein.
             
-        # Generate random but structured atom positions
+        Returns:
+            Dictionary containing atom positions and bonds.
+        """
         atoms = []
         bonds = []
         
-        # Create a core structure
-        center = np.array([0, 0, 0])
+        # Generate random but somewhat clustered atom positions
+        center = np.random.rand(3) * 5
+        for _ in range(n_atoms):
+            atoms.append(center + np.random.randn(3) * 2.5)
         
-        # Add core atoms
-        for i in range(min(5, n_atoms)):
-            angle = i * 2 * np.pi / 5
-            radius = 1.0
-            pos = center + radius * np.array([np.cos(angle), np.sin(angle), 0])
-            atoms.append(pos)
-            
-            # Connect to center (if we add a center atom)
-            if i > 0:
-                bonds.append([0, i])
-                
-        # Add peripheral atoms
-        for i in range(5, n_atoms):
-            # Connect to random existing atom
-            parent_idx = random.randint(0, min(i-1, len(atoms)-1))
-            parent_pos = atoms[parent_idx]
-            
-            # Random direction with some bias toward spreading out
-            direction = np.random.randn(3)
-            direction = direction / np.linalg.norm(direction)
-            
-            # Bond length
-            bond_length = random.uniform(0.8, 1.5)
-            pos = parent_pos + bond_length * direction
-            
-            atoms.append(pos)
-            bonds.append([parent_idx, i])
-            
+        # Connect nearby atoms to form a mesh-like structure
+        atoms_np = np.array(atoms)
+        for i in range(n_atoms):
+            for j in range(i + 1, n_atoms):
+                dist = np.linalg.norm(atoms_np[i] - atoms_np[j])
+                if dist < 2.5 and random.random() > 0.7:
+                    bonds.append([i, j])
+                    
         return {
-            'atoms': np.array(atoms),
+            'atoms': atoms_np,
             'bonds': bonds,
             'n_atoms': n_atoms
         }
     
     def animate_binding(self, protein_name: str, ligand_smiles: str, 
                        binding_affinity: float, confidence: float,
-                       target_protein: str) -> str:
+                       target_protein: str) -> Optional[str]:
         """
         Create binding animation between protein and ligand.
         
@@ -117,186 +157,140 @@ class ProteinLigandAnimator:
             target_protein: Original target protein name
             
         Returns:
-            Path to the generated video file
+            Path to the generated video file or None on failure.
         """
-        # Generate unique filename
         video_id = str(uuid.uuid4())[:8]
         video_path = self.output_dir / f"binding_{video_id}.gif"
         
-        logger.info(f"Creating binding animation: {protein_name} + {ligand_smiles[:20]}...")
+        logger.info(f"Creating binding animation for {protein_name} + {ligand_smiles}...")
         
         # Create molecular structures
-        protein_structure = self.create_molecule_structure("large")
-        ligand_structure = self.create_molecule_structure("small")
+        protein_structure = self.create_protein_structure(120)
+        ligand_structure = self.smiles_to_3d_structure(ligand_smiles)
         
+        if not ligand_structure:
+            logger.error("Failed to generate ligand structure. Aborting animation.")
+            return None
+
         # Set up the figure
-        fig = plt.figure(figsize=(16, 10))
-        
-        # Create grid layout
+        fig = plt.figure(figsize=(16, 10), facecolor='#1E1E1E')
         gs = gridspec.GridSpec(2, 3, figure=fig, height_ratios=[3, 1], width_ratios=[1, 1, 1])
         
-        # Main 3D animation subplot
-        ax_main = fig.add_subplot(gs[0, :], projection='3d')
+        ax_main = fig.add_subplot(gs[0, :], projection='3d', facecolor='#1E1E1E')
+        ax_info1 = fig.add_subplot(gs[1, 0], facecolor='#2D2D2D')
+        ax_info2 = fig.add_subplot(gs[1, 1], facecolor='#2D2D2D')
+        ax_info3 = fig.add_subplot(gs[1, 2], facecolor='#2D2D2D')
         
-        # Info panels
-        ax_info1 = fig.add_subplot(gs[1, 0])
-        ax_info2 = fig.add_subplot(gs[1, 1])
-        ax_info3 = fig.add_subplot(gs[1, 2])
-        
-        # Remove axes for info panels
-        for ax in [ax_info1, ax_info2, ax_info3]:
-            ax.set_xticks([])
-            ax.set_yticks([])
-            
-        # Set up 3D plot
-        ax_main.set_xlim([-8, 8])
-        ax_main.set_ylim([-8, 8])
-        ax_main.set_zlim([-8, 8])
-        ax_main.set_title("Protein-Ligand Binding Simulation", fontsize=16, pad=20)
-        
-        # Colors
-        protein_color = random.choice(self.protein_colors)
-        ligand_color = random.choice(self.ligand_colors)
-        
+        fig.subplots_adjust(hspace=0.3, wspace=0.3)
+
         def animate_frame(frame):
-            """Animation function for each frame"""
             ax_main.clear()
             
-            # Animation phases
+            # --- Animation Phases ---
             total_frames = self.frames
-            phase1_end = total_frames * 0.15  # Initial separation
-            phase2_end = total_frames * 0.3   # Approach
-            phase3_end = total_frames * 0.45  # Initial binding (zoom in)
-            phase4_end = total_frames * 0.6   # Conformational adjustment
-            phase5_end = total_frames * 0.75  # Induced fit
-            phase6_end = total_frames * 0.9   # Stable complex
-            phase7_end = total_frames * 1.0   # Zoom out
+            phase1_end = total_frames * 0.2
+            phase2_end = total_frames * 0.5
+            phase3_end = total_frames * 0.8
             
-            # Dynamic camera zoom based on animation phase
-            if frame < phase3_end:
-                # Normal view
-                zoom_factor = 8.0
-            elif frame < phase4_end:
-                # Zoom in during initial binding
-                t = (frame - phase3_end) / (phase4_end - phase3_end)
-                zoom_factor = 8.0 - 5.5 * (t * t * (3.0 - 2.0 * t))  # Smooth zoom in to 2.5
-            elif frame < phase6_end:
-                # Stay zoomed for detailed binding process
-                zoom_factor = 2.5
-            else:
-                # Zoom back out
-                t = (frame - phase6_end) / (phase7_end - phase6_end)
-                zoom_factor = 2.5 + 5.5 * (t * t * (3.0 - 2.0 * t))  # Smooth zoom out to 8.0
+            # --- Camera and Positioning ---
+            # Base positions before any movement or zoom adjustment
+            base_protein_pos = np.array([-5, 0, 0])
+            base_ligand_pos = np.array([5, 0, 0])
             
-            ax_main.set_xlim([-zoom_factor, zoom_factor])
-            ax_main.set_ylim([-zoom_factor, zoom_factor])
-            ax_main.set_zlim([-zoom_factor, zoom_factor])
-            ax_main.set_title("Protein-Ligand Binding Simulation", fontsize=16, pad=20)
-            
+            # Calculate positions based on animation phase
             if frame < phase1_end:
-                # Phase 1: Show separated molecules
-                t = frame / phase1_end
-                
-                # Protein position (left side)
-                protein_pos = np.array([-5, 0, 0])
-                # Ligand position (right side)
-                ligand_pos = np.array([5, 0, 0])
-                
-                # Add some rotation
-                rotation_angle = t * 2 * np.pi
-                
+                # Initial approach phase
+                protein_pos = base_protein_pos.copy()
+                ligand_pos = base_ligand_pos.copy()
             elif frame < phase2_end:
-                # Phase 2: Approach each other
+                # Movement toward binding site
                 t = (frame - phase1_end) / (phase2_end - phase1_end)
-                
-                # Smooth approach using easing function
-                ease_t = 1 - (1 - t) ** 3  # Ease-out cubic
-                
+                ease_t = 1 - (1 - t) ** 3
                 protein_pos = np.array([-5 + 3 * ease_t, 0, 0])
-                ligand_pos = np.array([5 - 4 * ease_t, 0, 0])
-                
-                rotation_angle = t * 2 * np.pi  # Reduced rotation for more realistic movement
-                
-            elif frame < phase3_end:
-                # Phase 3: Binding interaction - proper docking
-                t = (frame - phase2_end) / (phase3_end - phase2_end)
-                
-                # Create binding site cavity in protein
-                binding_site_pos = np.array([-1.5, 0, 0])
-                
-                # Ligand moves into the binding site
-                protein_pos = np.array([-2, 0, 0])
-                
-                # Smooth docking motion - ligand fits into binding site
-                start_pos = np.array([1, 0, 0])
-                end_pos = binding_site_pos + np.array([0.5, 0, 0])  # Slightly inside the binding site
-                
-                ease_t = t * t * (3.0 - 2.0 * t)  # Smooth step function for docking
-                ligand_pos = start_pos + ease_t * (end_pos - start_pos)
-                
-                # Orientation adjustment for proper binding
-                rotation_angle = t * np.pi  # Orient for binding
-                
+                ligand_pos = np.array([5 - 4.5 * ease_t, 0, 0])
             else:
-                # Phase 4: Bound state - connected complex
-                t = (frame - phase3_end) / (phase4_end - phase3_end)
+                # In binding phase - keep positions constant
+                protein_pos = np.array([-2, 0, 0])
+                ligand_pos = np.array([0.5, 0, 0])
+            
+            # Define binding center as the midpoint between protein and ligand for all phases
+            binding_center = np.array([0.5 * (protein_pos[0] + ligand_pos[0]), 
+                                     0.5 * (protein_pos[1] + ligand_pos[1]), 
+                                     0.5 * (protein_pos[2] + ligand_pos[2])])
+            
+            # Zoom calculation 
+            zoom_factor = 8.0
+            if frame > phase2_end:
+                # Calculate zoom factor for binding focus phase
+                t_zoom = min(1.0, (frame - phase2_end) / (total_frames * 0.1))
+                # Use easing function for smooth zoom
+                ease_zoom = t_zoom * t_zoom * (3.0 - 2.0 * t_zoom)
+                zoom_factor = 8.0 - 4.5 * ease_zoom
                 
-                # Stable bound complex with minimal breathing motion
-                protein_pos = np.array([-2, 0.02 * np.sin(t * 2 * np.pi), 0])
-                binding_site_pos = np.array([-1.5, 0.02 * np.sin(t * 2 * np.pi), 0])
-                ligand_pos = binding_site_pos + np.array([0.5, 0.01 * np.sin(t * 3 * np.pi), 0])
-                
-                rotation_angle = np.pi + 0.1 * np.sin(t * 2 * np.pi)  # Slight breathing motion
-                
-            # Draw protein
+                # Set camera to focus on binding site
+                ax_main.view_init(elev=30, azim=frame % 360)
+            
+            # Set consistent view limits based on zoom factor
+            ax_main.set_xlim([binding_center[0] - zoom_factor, binding_center[0] + zoom_factor])
+            ax_main.set_ylim([binding_center[1] - zoom_factor, binding_center[1] + zoom_factor])
+            ax_main.set_zlim([binding_center[2] - zoom_factor, binding_center[2] + zoom_factor])
+            
+            # --- Set plot style ---
+            ax_main.set_title("Protein-Ligand Binding Simulation", fontsize=16, color='white', pad=20)
+            ax_main.grid(False)
+            ax_main.xaxis.set_pane_color((0.0, 0.0, 0.0, 0.0))
+            ax_main.yaxis.set_pane_color((0.0, 0.0, 0.0, 0.0))
+            ax_main.zaxis.set_pane_color((0.0, 0.0, 0.0, 0.0))
+            ax_main.xaxis.line.set_color('white')
+            ax_main.yaxis.line.set_color('white')
+            ax_main.zaxis.line.set_color('white')
+            ax_main.tick_params(axis='x', colors='white')
+            ax_main.tick_params(axis='y', colors='white')
+            ax_main.tick_params(axis='z', colors='white')
+            ax_main.set_xlabel('X', color='white')
+            ax_main.set_ylabel('Y', color='white')
+            ax_main.set_zlabel('Z', color='white')
+
+            # Center ligand structure before applying position
+            ligand_atoms_centered = ligand_structure['atoms'] - ligand_structure['atoms'].mean(axis=0)
+            ligand_atoms = ligand_atoms_centered + ligand_pos
+            
+            # --- Drawing Protein (Conceptual) ---
             protein_atoms = protein_structure['atoms'] + protein_pos
+            protein_color = '#3498db'
             ax_main.scatter(protein_atoms[:, 0], protein_atoms[:, 1], protein_atoms[:, 2],
-                          c=protein_color, s=80, alpha=0.8, label='Target Protein')
-            
-            # Draw protein bonds
+                          c=protein_color, s=50, alpha=0.4)
             for bond in protein_structure['bonds']:
-                atom1, atom2 = protein_atoms[bond[0]], protein_atoms[bond[1]]
-                ax_main.plot([atom1[0], atom2[0]], [atom1[1], atom2[1]], [atom1[2], atom2[2]],
-                           color=protein_color, alpha=0.6, linewidth=2)
-            
-            # Draw ligand
-            ligand_atoms = ligand_structure['atoms'] + ligand_pos
-            ax_main.scatter(ligand_atoms[:, 0], ligand_atoms[:, 1], ligand_atoms[:, 2],
-                          c=ligand_color, s=60, alpha=0.8, label='Ligand')
+                p1, p2 = protein_atoms[bond[0]], protein_atoms[bond[1]]
+                ax_main.plot([p1[0], p2[0]], [p1[1], p2[1]], [p1[2], p2[2]],
+                           color=protein_color, alpha=0.3, linewidth=1.5)
+
+            # --- Drawing Ligand (Accurate) ---
+            # Draw ligand atoms with specific colors
+            for i, symbol in enumerate(ligand_structure['symbols']):
+                color = ATOM_COLORS.get(symbol, ATOM_COLORS['DEFAULT'])
+                atom_pos = ligand_atoms[i]
+                ax_main.scatter(atom_pos[0], atom_pos[1], atom_pos[2],
+                              c=color, s=80, alpha=0.9, edgecolors='w', linewidth=0.5)
             
             # Draw ligand bonds
             for bond in ligand_structure['bonds']:
-                atom1, atom2 = ligand_atoms[bond[0]], ligand_atoms[bond[1]]
-                ax_main.plot([atom1[0], atom2[0]], [atom1[1], atom2[1]], [atom1[2], atom2[2]],
-                           color=ligand_color, alpha=0.6, linewidth=2)
+                a1, a2 = ligand_atoms[bond[0]], ligand_atoms[bond[1]]
+                ax_main.plot([a1[0], a2[0]], [a1[1], a2[1]], [a1[2], a2[2]],
+                           color='white', alpha=0.8, linewidth=3)
             
-            # Add binding site representation in phase 3 and 4
-            if frame >= phase2_end:
-                # Draw binding site as a translucent sphere
-                u = np.linspace(0, 2 * np.pi, 20)
-                v = np.linspace(0, np.pi, 20)
-                x_sphere = 0.8 * np.outer(np.cos(u), np.sin(v)) + protein_pos[0] + 2
-                y_sphere = 0.8 * np.outer(np.sin(u), np.sin(v)) + protein_pos[1]
-                z_sphere = 0.8 * np.outer(np.ones(np.size(u)), np.cos(v)) + protein_pos[2]
-                
-                ax_main.plot_surface(x_sphere, y_sphere, z_sphere, alpha=0.2, color='yellow')
-            
-            # Add interaction lines in phases 3 and 4
-            if frame >= phase3_end:
+            # --- Interaction Lines ---
+            if frame > phase2_end:
+                t_interaction = min(1.0, (frame - phase2_end) / (total_frames * 0.2))
                 # Draw some interaction lines
-                for i in range(min(3, len(ligand_atoms))):
+                for i in range(min(4, len(ligand_atoms))):
                     closest_protein_idx = np.argmin(np.linalg.norm(
                         protein_atoms - ligand_atoms[i], axis=1))
                     
                     ax_main.plot([ligand_atoms[i][0], protein_atoms[closest_protein_idx][0]],
                                [ligand_atoms[i][1], protein_atoms[closest_protein_idx][1]],
                                [ligand_atoms[i][2], protein_atoms[closest_protein_idx][2]],
-                               'r--', alpha=0.5, linewidth=1)
-            
-            ax_main.legend(loc='upper right')
-            ax_main.set_xlabel('X')
-            ax_main.set_ylabel('Y')
-            ax_main.set_zlabel('Z')
+                               '#FFD700', linestyle='--', alpha=0.6 * t_interaction, linewidth=1.5)
             
             # Update info panels
             self._update_info_panels(ax_info1, ax_info2, ax_info3, frame, total_frames,
@@ -305,164 +299,61 @@ class ProteinLigandAnimator:
             
             return []
         
-        # Create animation
         anim = FuncAnimation(fig, animate_frame, frames=self.frames, interval=1000/self.fps, blit=False)
         
-        # Save animation as GIF (PIL supports this)
         try:
             writer = PillowWriter(fps=self.fps)
-            anim.save(video_path, writer=writer, dpi=80)
+            anim.save(video_path, writer=writer, dpi=120)
         except Exception as e:
             logger.error(f"Error saving animation: {e}")
-            # Fallback: try with lower quality
-            try:
-                writer = PillowWriter(fps=10)  # Lower FPS
-                anim.save(video_path, writer=writer, dpi=60)
-            except Exception as e2:
-                logger.error(f"Fallback save also failed: {e2}")
-                plt.close(fig)
-                return None
+            plt.close(fig)
+            return None
         
         plt.close(fig)
-        
         logger.info(f"Animation saved to: {video_path}")
         return str(video_path)
     
     def _update_info_panels(self, ax1, ax2, ax3, frame, total_frames,
                            protein_name, ligand_smiles, binding_affinity, confidence,
                            target_protein):
-        """Update the information panels during animation"""
-        
-        # Clear panels
-        ax1.clear()
-        ax2.clear()
-        ax3.clear()
-        
-        # Remove ticks
         for ax in [ax1, ax2, ax3]:
+            ax.clear()
             ax.set_xticks([])
             ax.set_yticks([])
-        
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.spines['bottom'].set_visible(False)
+            ax.spines['left'].set_visible(False)
+
         # Panel 1: Target Information
-        ax1.text(0.5, 0.8, "TARGET PROTEIN", ha='center', va='center', 
-                fontsize=12, weight='bold', transform=ax1.transAxes)
-        ax1.text(0.5, 0.6, target_protein, ha='center', va='center', 
-                fontsize=10, transform=ax1.transAxes, wrap=True)
-        ax1.text(0.5, 0.4, "SIMILAR PROTEIN", ha='center', va='center', 
-                fontsize=10, weight='bold', transform=ax1.transAxes)
-        ax1.text(0.5, 0.2, protein_name, ha='center', va='center', 
-                fontsize=9, transform=ax1.transAxes, wrap=True)
+        ax1.text(0.5, 0.85, "TARGET INFO", ha='center', color='white', fontsize=14, weight='bold')
+        ax1.text(0.5, 0.60, f"Original Target:\n{target_protein}", ha='center', va='top', color='#CCCCCC', fontsize=10, wrap=True)
+        ax1.text(0.5, 0.25, f"Homologous Protein:\n{protein_name}", ha='center', va='top', color='#CCCCCC', fontsize=10, wrap=True)
         
         # Panel 2: Binding Metrics
-        ax2.text(0.5, 0.8, "BINDING METRICS", ha='center', va='center', 
-                fontsize=12, weight='bold', transform=ax2.transAxes)
-        ax2.text(0.5, 0.6, f"Affinity: {binding_affinity:.2f} pKd", ha='center', va='center', 
-                fontsize=10, transform=ax2.transAxes)
-        ax2.text(0.5, 0.4, f"Confidence: {confidence*100:.1f}%", ha='center', va='center', 
-                fontsize=10, transform=ax2.transAxes)
+        ax2.text(0.5, 0.85, "BINDING METRICS", ha='center', color='white', fontsize=14, weight='bold')
+        ax2.text(0.5, 0.60, f"Affinity (pKd): {binding_affinity:.2f}", ha='center', color='#4CAF50', fontsize=12)
+        ax2.text(0.5, 0.40, f"Confidence: {confidence*100:.1f}%", ha='center', color='#2196F3', fontsize=12)
         
         # Progress bar
         progress = frame / total_frames
-        ax2.add_patch(patches.Rectangle((0.1, 0.1), 0.8*progress, 0.1, 
-                                       facecolor='green', alpha=0.7, transform=ax2.transAxes))
-        ax2.add_patch(patches.Rectangle((0.1, 0.1), 0.8, 0.1, 
-                                       facecolor='none', edgecolor='black', 
-                                       transform=ax2.transAxes))
+        ax2.add_patch(patches.Rectangle((0.1, 0.1), 0.8, 0.1, facecolor='#444444', transform=ax2.transAxes))
+        ax2.add_patch(patches.Rectangle((0.1, 0.1), 0.8*progress, 0.1, facecolor='#00BCD4', alpha=0.7, transform=ax2.transAxes))
         
         # Panel 3: Ligand Information
-        ax3.text(0.5, 0.8, "LIGAND MOLECULE", ha='center', va='center', 
-                fontsize=12, weight='bold', transform=ax3.transAxes)
-        ax3.text(0.5, 0.6, "SMILES:", ha='center', va='center', 
-                fontsize=10, weight='bold', transform=ax3.transAxes)
-        
-        # Truncate SMILES if too long
-        display_smiles = ligand_smiles[:20] + "..." if len(ligand_smiles) > 20 else ligand_smiles
-        ax3.text(0.5, 0.4, display_smiles, ha='center', va='center', 
-                fontsize=9, transform=ax3.transAxes, family='monospace')
-        
-        # Animation phase indicator
-        phase1_end = total_frames * 0.2
-        phase2_end = total_frames * 0.6
-        phase3_end = total_frames * 0.8
-        
-        if frame < phase1_end:
-            phase_text = "INITIALIZING"
-        elif frame < phase2_end:
-            phase_text = "APPROACHING"
-        elif frame < phase3_end:
-            phase_text = "BINDING"
-        else:
-            phase_text = "BOUND COMPLEX"
-            
-        ax3.text(0.5, 0.2, phase_text, ha='center', va='center', 
-                fontsize=10, weight='bold', color='red', transform=ax3.transAxes)
-
-class BindingAnimationManager:
-    """Manager class for handling binding animations in the Streamlit app"""
-    
-    def __init__(self, videos_dir: str = "videos"):
-        """
-        Initialize the animation manager.
-        
-        Args:
-            videos_dir: Directory to store generated videos
-        """
-        self.animator = ProteinLigandAnimator(videos_dir)
-        self.videos_dir = Path(videos_dir)
-        self.videos_dir.mkdir(exist_ok=True)
-        
-    def create_binding_animation(self, recommendation: Dict, target_protein: str) -> Optional[str]:
-        """
-        Create a binding animation for a specific recommendation.
-        
-        Args:
-            recommendation: Recommendation dictionary from predictor
-            target_protein: Original target protein name
-            
-        Returns:
-            Path to generated video file or None if failed
-        """
-        try:
-            video_path = self.animator.animate_binding(
-                protein_name=recommendation['target_protein'],
-                ligand_smiles=recommendation['smiles'],
-                binding_affinity=recommendation['binding_affinity'],
-                confidence=recommendation['confidence'],
-                target_protein=target_protein
-            )
-            return video_path
-        except Exception as e:
-            logger.error(f"Failed to create binding animation: {e}")
-            return None
-    
-    def cleanup_old_videos(self, max_age_hours: int = 24):
-        """
-        Clean up old video files to save storage space.
-        
-        Args:
-            max_age_hours: Maximum age of videos in hours before deletion
-        """
-        try:
-            current_time = time.time()
-            max_age_seconds = max_age_hours * 3600
-            
-            for video_file in self.videos_dir.glob("*.mp4"):
-                if current_time - video_file.stat().st_mtime > max_age_seconds:
-                    video_file.unlink()
-                    logger.info(f"Deleted old video: {video_file}")
-                    
-        except Exception as e:
-            logger.error(f"Failed to cleanup old videos: {e}")
+        ax3.text(0.5, 0.85, "LIGAND", ha='center', color='white', fontsize=14, weight='bold')
+        display_smiles = ligand_smiles[:30] + "..." if len(ligand_smiles) > 30 else ligand_smiles
+        ax3.text(0.5, 0.5, f"SMILES:\n{display_smiles}", ha='center', va='top', color='#CCCCCC', fontsize=9, family='monospace', wrap=True)
 
 if __name__ == "__main__":
-    # Test the animation system
+    # Test the animation system with a common molecule (Aspirin)
     animator = ProteinLigandAnimator()
     
     test_recommendation = {
-        'target_protein': 'Protein Kinase A',
-        'smiles': 'CC(=O)Oc1ccccc1C(=O)O',
-        'binding_affinity': 7.5,
-        'confidence': 0.85
+        'target_protein': 'Protein kinase A',
+        'smiles': 'CC(=O)OC1=CC=CC=C1C(=O)O',  # Aspirin
+        'binding_affinity': 6.8,
+        'confidence': 0.92
     }
     
     video_path = animator.animate_binding(
@@ -470,7 +361,10 @@ if __name__ == "__main__":
         ligand_smiles=test_recommendation['smiles'],
         binding_affinity=test_recommendation['binding_affinity'],
         confidence=test_recommendation['confidence'],
-        target_protein="Protein Kinase Family"
+        target_protein="Cyclooxygenase Enzyme Family"
     )
     
-    print(f"Test animation created: {video_path}")
+    if video_path:
+        print(f"Test animation created successfully: {video_path}")
+    else:
+        print("Failed to create test animation.")
