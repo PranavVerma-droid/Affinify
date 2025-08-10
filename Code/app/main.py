@@ -5,15 +5,13 @@ A clean, unified web application for the Affinify protein-ligand binding affinit
 """
 
 import streamlit as st
-import sys
-import json
 import pandas as pd
 import numpy as np
-import logging
+import json
+import os
+import sys
 import subprocess
-import os  # Ensure os is imported
 import time
-import random
 from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
@@ -36,15 +34,11 @@ from io import BytesIO
 # Import components.v1 explicitly
 from streamlit.components.v1 import html
 
-# Configure logging
-logger = logging.getLogger(__name__)
-
 try:
     from data_processing.data_collector import DataCollector
     from data_processing.feature_extractor import MolecularFeatureExtractor
     from models.ml_models import ModelTrainer
     from visualization.molecular_viz import MolecularVisualizer
-    from visualization.binding_anim import BindingAnimationManager
     from utils.ollama_chat import create_ollama_chat
 except ImportError as e:
     st.error(f"Error importing modules: {e}")
@@ -137,16 +131,6 @@ class AffinifyApp:
         # Initialize Ollama chat
         self.chat = create_ollama_chat()
         
-        # Initialize binding animation manager
-        videos_dir = self.project_root / "videos"
-        videos_dir.mkdir(exist_ok=True)  # Ensure videos directory exists
-        try:
-            self.animation_manager = BindingAnimationManager(str(videos_dir))
-            logger.info(f"Animation manager initialized with videos dir: {videos_dir}")
-        except Exception as e:
-            logger.warning(f"Failed to initialize animation manager: {e}")
-            self.animation_manager = None
-        
         # Initialize session state
         self.init_session_state()
         
@@ -167,14 +151,6 @@ class AffinifyApp:
             st.session_state.ollama_available = False
         if 'protein_search' not in st.session_state:
             st.session_state.protein_search = ''
-        if 'animation_requested' not in st.session_state:
-            st.session_state.animation_requested = False
-        if 'animation_path' not in st.session_state:
-            st.session_state.animation_path = None
-        if 'animation_rec' not in st.session_state:
-            st.session_state.animation_rec = None
-        if 'target_protein' not in st.session_state:
-            st.session_state.target_protein = None
     
     def load_system_status(self):
         """Load current system status"""
@@ -185,13 +161,6 @@ class AffinifyApp:
             'last_update': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
         st.session_state.system_status = status
-        
-        # Clean up old animation files
-        if hasattr(self, 'animation_manager') and self.animation_manager:
-            try:
-                self.animation_manager.cleanup_old_videos(max_age_hours=48)
-            except Exception as e:
-                logger.warning(f"Failed to clean up old animations: {e}")
     
     def check_bindingdb_data(self):
         """Check if BindingDB data is available"""
@@ -305,7 +274,7 @@ class AffinifyApp:
         # Navigation
         page = st.sidebar.selectbox(
             "Navigate",
-            ["🏠 Home", "📊 Data Pipeline", "🔬 Predictions", "📈 Analysis", "🤖 AI Assistant", "⚙️ Settings", "ℹ️ About"]
+            ["🏠 Home", "📊 Data Pipeline", "🔬 Predictions", "🎬 Animations", "📈 Analysis", "🤖 AI Assistant", "⚙️ Settings", "ℹ️ About"]
         )
         
         st.sidebar.markdown("---")
@@ -697,91 +666,9 @@ class AffinifyApp:
             logger.error(f"Error rendering 3D molecule: {e}")
             return None
 
-    def handle_animation_request(self, rec, target_protein):
-        """
-        Handle animation request and store in session state
-        
-        Args:
-            rec: Recommendation dictionary
-            target_protein: Target protein name
-        """
-        # Store the request in session state
-        st.session_state.animation_requested = True
-        st.session_state.animation_rec = rec
-        st.session_state.target_protein = target_protein
-        st.session_state.animation_path = None  # Reset any previous animation
-        
-        # Log the request
-        logger.info(f"Animation requested for {rec['target_protein']} with {target_protein}")
-        
-    def generate_animation(self):
-        """Generate animation based on session state request"""
-        if not st.session_state.animation_requested or not st.session_state.animation_rec:
-            return
-            
-        # Create a placeholder for the status
-        status_placeholder = st.empty()
-        status_placeholder.info("🎬 Generating animation... (this may take 20-30 seconds)")
-        
-        try:
-            # Generate the animation
-            rec = st.session_state.animation_rec
-            target = st.session_state.target_protein
-            
-            video_path = self.animation_manager.create_binding_animation(rec, target)
-            
-            # Store the result in session state
-            st.session_state.animation_path = video_path
-            st.session_state.animation_requested = False  # Reset request flag
-            
-            # Update status
-            if video_path and os.path.exists(video_path):
-                status_placeholder.success("Animation created successfully!")
-            else:
-                status_placeholder.error("Failed to create animation. Please try again.")
-                
-        except Exception as e:
-            status_placeholder.error(f"Error generating animation: {str(e)}")
-            st.session_state.animation_requested = False
-    
     def show_predictions_page(self):
         """Show predictions page with enhanced visuals and advanced fake computation animations"""
         st.markdown('<div class="sub-header">🔬 Predictions</div>', unsafe_allow_html=True)
-        
-        # Check if we need to generate an animation
-        if st.session_state.animation_requested:
-            self.generate_animation()
-            
-        # Display animation if it exists
-        if st.session_state.animation_path and os.path.exists(st.session_state.animation_path):
-            st.markdown("### 🎬 Binding Animation")
-            file_path = st.session_state.animation_path
-            file_extension = os.path.splitext(file_path)[1].lower()
-            
-            if file_extension == '.gif':
-                # For GIF files
-                with open(file_path, "rb") as file:
-                    contents = file.read()
-                st.image(contents, caption="Protein-Ligand Binding Animation")
-            else:
-                # For video files
-                st.video(file_path)
-                
-            # Provide download link
-            with open(file_path, "rb") as file:
-                st.download_button(
-                    label="📥 Download Animation",
-                    data=file.read(),
-                    file_name=f"binding_animation.{file_extension[1:]}",
-                    mime=f"{'image/gif' if file_extension == '.gif' else 'video/mp4'}"
-                )
-            
-            # Add a button to clear the animation
-            if st.button("❌ Clear Animation"):
-                st.session_state.animation_path = None
-                st.rerun()
-                
-            st.markdown("---")
         
         # Add advanced animation CSS and JS
         st.markdown("""
@@ -982,7 +869,7 @@ class AffinifyApp:
                 if target_protein:
                     with st.spinner("🤔 Analyzing database for best binders..."):
                         algo_names = [
-                            "Quantum Similarity Matrix Multiplication",
+                            "Similarity Matrix Multiplication",
                             "Deep Ligand Scoring (DLS) Algorithm",
                             "Protein-Ligand Graph Embedding",
                             "Bayesian Confidence Estimator",
@@ -1032,8 +919,6 @@ class AffinifyApp:
                             st.success(f"Found {len(recommendations)} potential binders!")
                             
                             for i, rec in enumerate(recommendations, 1):
-                                # Store recommendation in session state for persistence
-                                st.session_state[f"rec_{i}"] = rec
                                 with st.expander(f"🔬 Recommendation #{i} - {rec['binding_strength']} Binding", expanded=i==1):
                                     col1, col2 = st.columns([1, 1])
                                     
@@ -1105,40 +990,16 @@ class AffinifyApp:
                                     
                                     # Show SMILES with copy button
                                     st.markdown("##### Molecule SMILES")
-                                    col1, col2 = st.columns([3, 1])
-                                    with col1:
-                                        st.code(rec['smiles'], language=None)
-                                    with col2:
-                                        if st.button("📋 Copy", key=f"copy_{i}"):
-                                            st.write("Copied to clipboard!")
-                                    
-                                    # Add animation button for top recommendation
-                                    if i == 1 and self.animation_manager:
-                                        st.markdown("---")
-                                        st.markdown("##### 🎬 Binding Simulation")
-                                        
-                                        col1, col2 = st.columns([1, 1])
-                                        with col1:
-                                            if st.button("🎭 Play Animation", key=f"animate_{i}", use_container_width=True):
-                                                # Handle the animation request
-                                                self.handle_animation_request(rec, target_protein)
-                                                st.rerun()  # Rerun to trigger the animation generation
-                                        
-                                        with col2:
-                                            st.info("Watch the molecular binding process in 3D! The animation shows how the ligand approaches and binds to the protein target.")
+                                    st.code(rec['smiles'], language=None)
                                     
                                     # Show similar protein
                                     st.info(f"💡 Based on known binding with: {rec['target_protein']}")
-                        else:
-                            st.warning("""
-                            No recommendations found. Try:
-                            - Using a more general protein family name (e.g., 'kinase' instead of a specific kinase)
-                            - Checking for typos
-                            - Using one of the suggested protein families above
-                            """)
-                else:
-                    st.error("Please enter a target protein name")
-        
+                                    
+                                    # Animation generation prompt
+                                    st.markdown("---")
+                                    st.markdown(
+                                        "**🎬 To visualize this binding, go to the 'Animations' page and enter these details!**"
+                                    )
         # --- Single Prediction Tab ---
         with tab2:
             st.markdown("### 🎯 Single Molecule Prediction")
@@ -1258,6 +1119,11 @@ class AffinifyApp:
                             viewer = self.render_molecule_3d(smiles)
                             if viewer:
                                 html(viewer, height=450)
+                            
+                            st.markdown("---")
+                            st.markdown(
+                                "**🎬 To visualize this prediction, go to the 'Animations' page and enter these details!**"
+                            )
                         else:
                             st.error("Could not make prediction. Please check your input.")
                 else:
@@ -1372,6 +1238,522 @@ class AffinifyApp:
                 except Exception as e:
                     st.error(f"Error processing file: {str(e)}")
     
+    def show_animations_page(self):
+        """Show animations page for generating binding visualizations"""
+        st.markdown('<div class="sub-header">🎬 Binding Animations</div>', unsafe_allow_html=True)
+        
+        st.markdown("""
+        Generate stunning 3D animated visualizations of protein-ligand binding interactions.
+        These animations show the molecular dynamics of how ligands approach and bind to protein targets.
+        """)
+        
+        # Check if animation CLI exists
+        animation_cli = self.project_root / "scripts" / "animation_cli.py"
+        if not animation_cli.exists():
+            st.error("❌ Animation CLI not found. Please ensure the animation_cli.py script is available.")
+            return
+        
+        # Animation status
+        videos_dir = self.project_root / "videos"
+        videos_dir.mkdir(exist_ok=True)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>🎥 Video Format</h3>
+                <p>High-quality GIF animations</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>⏱️ Duration</h3>
+                <p>8 seconds per animation</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            existing_videos = list(videos_dir.glob("*.gif"))
+            st.markdown(f"""
+            <div class="metric-card">
+                <h3>📁 Generated</h3>
+                <p>{len(existing_videos)} animations</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Animation generation interface
+        tab1, tab2, tab3 = st.tabs(["Generate New", "Quick Examples", "Gallery"])
+        
+        # --- Generate New Animation Tab ---
+        with tab1:
+            st.markdown("### 🎬 Create New Animation")
+            st.markdown("""
+            Enter the details below to generate a new binding animation. The system will create
+            a 3D visualization showing how the ligand approaches and binds to the target protein.
+            """)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### 🧬 Ligand Information")
+                
+                ligand_smiles = st.text_input(
+                    "Ligand SMILES",
+                    placeholder="e.g., CC(=O)OC1=CC=CC=C1C(=O)O",
+                    help="Enter the SMILES string of the ligand molecule"
+                )
+                
+                if ligand_smiles:
+                    # Show molecule preview if possible
+                    try:
+                        svg = self.render_molecule(ligand_smiles, size=(300, 200))
+                        if svg:
+                            st.markdown("**Structure Preview:**")
+                            st.markdown(f'<div style="text-align: center;">{svg}</div>', unsafe_allow_html=True)
+                    except:
+                        pass
+                
+                binding_affinity = st.number_input(
+                    "Binding Affinity (pKd)",
+                    min_value=0.0,
+                    max_value=15.0,
+                    value=6.5,
+                    step=0.1,
+                    help="Predicted binding affinity in pKd units"
+                )
+            
+            with col2:
+                st.markdown("#### 🎯 Protein Information")
+                
+                target_protein = st.text_input(
+                    "Target Protein",
+                    placeholder="e.g., Protein kinase A",
+                    help="Original target protein name"
+                )
+                
+                protein_name = st.text_input(
+                    "Homologous Protein",
+                    placeholder="e.g., Similar kinase found in database",
+                    help="Similar protein used for binding prediction"
+                )
+                
+                confidence = st.slider(
+                    "Prediction Confidence",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.75,
+                    step=0.01,
+                    help="Confidence level of the binding prediction"
+                )
+            
+            # Advanced options
+            with st.expander("🔧 Advanced Options"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    output_filename = st.text_input(
+                        "Custom Filename (optional)",
+                        placeholder="my_animation",
+                        help="Custom name for the output file (without extension)"
+                    )
+                
+                with col2:
+                    save_json = st.checkbox(
+                        "Save metadata",
+                        value=True,
+                        help="Save animation parameters to JSON file"
+                    )
+            
+            # Generate animation button
+            if st.button("🎬 Generate Animation", use_container_width=True):
+                # Validate inputs
+                errors = []
+                if not ligand_smiles or len(ligand_smiles.strip()) < 2:
+                    errors.append("Please provide a valid SMILES string")
+                if not target_protein or len(target_protein.strip()) < 2:
+                    errors.append("Please provide a target protein name")
+                if not protein_name or len(protein_name.strip()) < 2:
+                    errors.append("Please provide a homologous protein name")
+                
+                if errors:
+                    for error in errors:
+                        st.error(f"❌ {error}")
+                else:
+                    # Prepare CLI arguments
+                    cli_args = [
+                        "--protein", protein_name.strip(),
+                        "--smiles", ligand_smiles.strip(),
+                        "--affinity", str(binding_affinity),
+                        "--confidence", str(confidence),
+                        "--target", target_protein.strip(),
+                        "--output-dir", str(videos_dir)
+                    ]
+                    
+                    # Add JSON output if requested
+                    if save_json:
+                        json_file = videos_dir / f"animation_result_{int(time.time())}.json"
+                        cli_args.extend(["--output-json", str(json_file)])
+                    
+                    # Show generation process
+                    with st.spinner("🎬 Generating animation... This may take 2-3 minutes"):
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        # Simulate progress updates
+                        statuses = [
+                            "🧪 Analyzing molecular structure...",
+                            "🎯 Setting up protein environment...",
+                            "📐 Calculating binding geometry...",
+                            "🎬 Rendering 3D animation frames...",
+                            "💾 Saving final video..."
+                        ]
+                        
+                        for i, status in enumerate(statuses):
+                            status_text.text(status)
+                            progress_bar.progress((i + 1) / len(statuses))
+                            
+                            if i == 3:  # Actual CLI call during rendering phase
+                                try:
+                                    # Run the animation CLI
+                                    command = ["python", str(animation_cli)] + cli_args
+                                    result = subprocess.run(
+                                        command,
+                                        capture_output=True,
+                                        text=True,
+                                        cwd=str(self.project_root)
+                                    )
+                                    
+                                    if result.returncode != 0:
+                                        st.error(f"❌ Animation generation failed!")
+                                        if result.stderr:
+                                            st.error(f"Error: {result.stderr}")
+                                        if result.stdout:
+                                            with st.expander("📋 Process Output"):
+                                                st.code(result.stdout)
+                                        break
+                                        
+                                except Exception as e:
+                                    st.error(f"❌ Exception during animation generation: {str(e)}")
+                                    break
+                            else:
+                                time.sleep(0.5)  # Simulate processing time
+                        
+                        progress_bar.empty()
+                        status_text.empty()
+                    
+                    # Check for success and show results
+                    if result.returncode == 0:
+                        st.success("🎉 Animation generated successfully!")
+                        
+                        # Try to load the JSON result if it exists
+                        if save_json and json_file.exists():
+                            try:
+                                with open(json_file, 'r') as f:
+                                    result_data = json.load(f)
+                                
+                                if result_data.get('success') and result_data.get('video_path'):
+                                    video_path = Path(result_data['video_path'])
+                                    
+                                    if video_path.exists():
+                                        # Show animation details
+                                        st.markdown("### 🎬 Animation Ready!")
+                                        
+                                        col1, col2 = st.columns([2, 1])
+                                        
+                                        with col1:
+                                            # Display the animation
+                                            st.markdown("**Generated Animation:**")
+                                            with open(video_path, 'rb') as f:
+                                                video_bytes = f.read()
+                                            st.image(video_bytes, caption=f"Binding animation: {target_protein}")
+                                        
+                                        with col2:
+                                            # Show details and download
+                                            st.markdown("**Animation Details:**")
+                                            st.text(f"File: {video_path.name}")
+                                            st.text(f"Size: {video_path.stat().st_size / 1024:.1f} KB")
+                                            st.text(f"Format: GIF")
+                                            
+                                            # Download button
+                                            st.download_button(
+                                                "📥 Download Animation",
+                                                data=video_bytes,
+                                                file_name=video_path.name,
+                                                mime="image/gif"
+                                            )
+                                            
+                                            # Show parameters
+                                            with st.expander("📋 Parameters"):
+                                                st.json({
+                                                    "Target": target_protein,
+                                                    "Protein": protein_name,
+                                                    "SMILES": ligand_smiles,
+                                                    "Affinity": binding_affinity,
+                                                    "Confidence": confidence
+                                                })
+                                    else:
+                                        st.error("❌ Animation file not found after generation")
+                                else:
+                                    st.error("❌ Animation generation reported failure")
+                                    
+                            except Exception as e:
+                                st.error(f"❌ Error reading animation result: {e}")
+                        else:
+                            # Fallback: look for the most recent GIF file
+                            gif_files = sorted(videos_dir.glob("binding_*.gif"), key=lambda x: x.stat().st_mtime, reverse=True)
+                            if gif_files:
+                                latest_gif = gif_files[0]
+                                st.markdown("### 🎬 Animation Ready!")
+                                with open(latest_gif, 'rb') as f:
+                                    video_bytes = f.read()
+                                st.image(video_bytes, caption=f"Binding animation: {target_protein}")
+                                
+                                st.download_button(
+                                    "📥 Download Animation",
+                                    data=video_bytes,
+                                    file_name=latest_gif.name,
+                                    mime="image/gif"
+                                )
+        
+        # --- Quick Examples Tab ---
+        with tab2:
+            st.markdown("### ⚡ Quick Examples")
+            st.markdown("Generate animations for common drug-protein interactions with pre-filled parameters.")
+            
+            examples = [
+                {
+                    "name": "Aspirin + COX-1",
+                    "description": "Classic anti-inflammatory interaction",
+                    "smiles": "CC(=O)OC1=CC=CC=C1C(=O)O",
+                    "target": "Cyclooxygenase-1",
+                    "protein": "Prostaglandin synthase",
+                    "affinity": 7.2,
+                    "confidence": 0.89
+                },
+                {
+                    "name": "Caffeine + Adenosine Receptor",
+                    "description": "Stimulant mechanism of action",
+                    "smiles": "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
+                    "target": "Adenosine A2A receptor",
+                    "protein": "GABA receptor",
+                    "affinity": 6.8,
+                    "confidence": 0.76
+                },
+                {
+                    "name": "Acetaminophen + COX-2",
+                    "description": "Pain relief mechanism",
+                    "smiles": "CC(=O)NC1=CC=C(C=C1)O",
+                    "target": "Cyclooxygenase-2",
+                    "protein": "Prostaglandin synthase 2",
+                    "affinity": 6.5,
+                    "confidence": 0.82
+                },
+                {
+                    "name": "Ibuprofen + COX-1",
+                    "description": "NSAID anti-inflammatory",
+                    "smiles": "CC(C)CC1=CC=C(C=C1)C(C)C(=O)O",
+                    "target": "Cyclooxygenase-1",
+                    "protein": "Prostaglandin synthase",
+                    "affinity": 7.0,
+                    "confidence": 0.85
+                },
+                {
+                    "name": "Morphine + Opioid Receptor",
+                    "description": "Pain management mechanism",
+                    "smiles": "CN1CC[C@]23C4=C5C=CC(O)=C4O[C@H]2[C@@H](O)C=C[C@H]3[C@H]1C5",
+                    "target": "Mu-opioid receptor",
+                    "protein": "GABA receptor",
+                    "affinity": 8.9,
+                    "confidence": 0.91
+                },
+                {
+                    "name": "Penicillin + Beta-lactamase",
+                    "description": "Antibiotic mechanism",
+                    "smiles": "CC1([C@@H](N2[C@H](S1)[C@@H](C2=O)NC(=O)CC3=CC=CC=C3)C(=O)O)C",
+                    "target": "Beta-lactamase",
+                    "protein": "Penicillin-binding protein",
+                    "affinity": 7.8,
+                    "confidence": 0.88
+                },
+                {
+                    "name": "Adrenaline + Beta-2 Receptor",
+                    "description": "Bronchodilator action",
+                    "smiles": "CNC[C@@H](C1=CC(=C(C=C1)O)O)O",
+                    "target": "Beta-2 adrenergic receptor",
+                    "protein": "GABA receptor",
+                    "affinity": 7.5,
+                    "confidence": 0.83
+                },
+                {
+                    "name": "Dopamine + D2 Receptor",
+                    "description": "Neurotransmitter binding",
+                    "smiles": "NCCC1=CC(O)=C(O)C=C1",
+                    "target": "Dopamine D2 receptor",
+                    "protein": "GABA receptor",
+                    "affinity": 6.9,
+                    "confidence": 0.79
+                }
+            ]
+            
+            for i, example in enumerate(examples):
+                with st.expander(f"🧬 {example['name']}", expanded=False):
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.markdown(f"**Description:** {example['description']}")
+                        st.markdown(f"**Target:** {example['target']}")
+                        st.markdown(f"**Homologous Protein:** {example['protein']}")
+                        st.markdown(f"**SMILES:** `{example['smiles']}`")
+                        st.markdown(f"**Affinity:** {example['affinity']} pKd")
+                        st.markdown(f"**Confidence:** {example['confidence']*100:.1f}%")
+                    
+                    with col2:
+                        if st.button(f"🎬 Generate", key=f"example_{i}"):
+                            # Generate animation directly
+                            with st.spinner(f"🎬 Generating {example['name']} animation..."):
+                                cli_args = [
+                                    "--protein", example['protein'],
+                                    "--smiles", example['smiles'],
+                                    "--affinity", str(example['affinity']),
+                                    "--confidence", str(example['confidence']),
+                                    "--target", example['target'],
+                                    "--output-dir", str(videos_dir)
+                                ]
+                                
+                                json_file = videos_dir / f"animation_result_{int(time.time())}.json"
+                                cli_args.extend(["--output-json", str(json_file)])
+                                
+                                try:
+                                    command = ["python", str(animation_cli)] + cli_args
+                                    result = subprocess.run(
+                                        command,
+                                        capture_output=True,
+                                        text=True,
+                                        cwd=str(self.project_root)
+                                    )
+                                    
+                                    if result.returncode == 0:
+                                        st.success(f"🎉 {example['name']} animation generated!")
+                                        
+                                        if json_file.exists():
+                                            with open(json_file, 'r') as f:
+                                                result_data = json.load(f)
+                                            
+                                            if result_data.get('success') and result_data.get('video_path'):
+                                                video_path = Path(result_data['video_path'])
+                                                if video_path.exists():
+                                                    with open(video_path, 'rb') as f:
+                                                        video_bytes = f.read()
+                                                    
+                                                    st.image(video_bytes, caption=f"{example['name']} binding animation")
+                                                    st.download_button(
+                                                        f"📥 Download {example['name']} Animation",
+                                                        data=video_bytes,
+                                                        file_name=video_path.name,
+                                                        mime="image/gif",
+                                                        key=f"download_example_{i}"
+                                                    )
+                                    else:
+                                        st.error(f"❌ Failed to generate {example['name']} animation")
+                                        if result.stderr:
+                                            st.error(f"Error: {result.stderr}")
+                                            
+                                except Exception as e:
+                                    st.error(f"❌ Exception during animation generation: {str(e)}")
+        
+        # --- Gallery Tab ---
+        with tab3:
+            st.markdown("### 🖼️ Animation Gallery")
+            st.markdown("Browse and download previously generated animations.")
+            gif_files = list(videos_dir.glob("*.gif"))
+            if gif_files:
+                gif_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                st.markdown(f"**Found {len(gif_files)} animations**")
+                cols_per_row = 2
+                for i in range(0, len(gif_files), cols_per_row):
+                    cols = st.columns(cols_per_row)
+                    for j, col in enumerate(cols):
+                        if i + j < len(gif_files):
+                            gif_file = gif_files[i + j]
+                            with col:
+                                try:
+                                    with open(gif_file, 'rb') as f:
+                                        video_bytes = f.read()
+                                    st.image(video_bytes, caption=gif_file.name, use_column_width=True)
+                                    file_size = gif_file.stat().st_size / 1024
+                                    mod_time = datetime.fromtimestamp(gif_file.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+                                    st.text(f"Size: {file_size:.1f} KB")
+                                    st.text(f"Created: {mod_time}")
+                                    st.download_button(
+                                        "📥 Download",
+                                        data=video_bytes,
+                                        file_name=gif_file.name,
+                                        mime="image/gif",
+                                        key=f"download_{gif_file.name}"
+                                    )
+                                    if st.button("🗑️ Delete", key=f"delete_{gif_file.name}"):
+                                        try:
+                                            gif_file.unlink()
+                                            st.success(f"✅ Deleted {gif_file.name}")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"❌ Error deleting file: {e}")
+                                except Exception as e:
+                                    st.error(f"❌ Error loading {gif_file.name}: {e}")
+                st.markdown("---")
+                st.markdown("### 🔧 Bulk Operations")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🗑️ Clear All Animations"):
+                        if st.button("⚠️ Confirm Delete All", key="confirm_delete_all"):
+                            try:
+                                for gif_file in gif_files:
+                                    gif_file.unlink()
+                                st.success(f"✅ Deleted {len(gif_files)} animations")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error deleting files: {e}")
+                with col2:
+                    if len(gif_files) > 1:
+                        if st.button("📦 Download All as ZIP"):
+                            try:
+                                import zipfile
+                                from io import BytesIO
+                                zip_buffer = BytesIO()
+                                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                    for gif_file in gif_files:
+                                        zip_file.write(gif_file, gif_file.name)
+                                zip_buffer.seek(0)
+                                st.download_button(
+                                    "📥 Download ZIP",
+                                    data=zip_buffer.getvalue(),
+                                    file_name=f"animations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                                    mime="application/zip"
+                                )
+                            except Exception as e:
+                                st.error(f"❌ Error creating ZIP: {e}")
+            else:
+                st.info("📭 No animations found. Generate your first animation using the 'Generate New' tab!")
+                st.markdown("""
+                ### 🚀 Getting Started with Animations
+                
+                1. **Switch to 'Generate New'** to create your first animation
+                2. **Try 'Quick Examples'** for pre-configured drug interactions
+                3. **Provide SMILES and protein names** for custom molecules
+                4. **Wait 2-3 minutes** for the animation to render
+                5. **Download and share** your molecular visualizations
+                
+                **Tips for best results:**
+                - Use valid SMILES strings (check with online validators)
+                - Provide realistic binding affinity values (0-15 pKd)
+                - Choose well-known protein names for better accuracy
+                """)
+
     def show_analysis_page(self):
         """Show analysis and results page"""
         st.markdown('<div class="sub-header">📈 Analysis & Results</div>', unsafe_allow_html=True)
@@ -2009,6 +2391,8 @@ class AffinifyApp:
             self.show_data_pipeline_page()
         elif page == "🔬 Predictions":
             self.show_predictions_page()
+        elif page == "🎬 Animations":
+            self.show_animations_page()
         elif page == "📈 Analysis":
             self.show_analysis_page()
         elif page == "🤖 AI Assistant":

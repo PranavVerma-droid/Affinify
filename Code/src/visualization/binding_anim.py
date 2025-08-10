@@ -20,14 +20,17 @@ from typing import Tuple, Dict, Optional, List
 import random
 import time
 import os
+import sys
 
 # Try to import RDKit, which is essential for molecular processing
 try:
     from rdkit import Chem
     from rdkit.Chem import AllChem
+    RDKIT_AVAILABLE = True
 except ImportError:
-    print("RDKit not found. Please install it: pip install rdkit-pypi")
-    exit()
+    print("Warning: RDKit not found. Some features may not work properly.")
+    print("To install RDKit: pip install rdkit-pypi")
+    RDKIT_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -76,6 +79,10 @@ class ProteinLigandAnimator:
         Returns:
             A dictionary with atom symbols, positions, and bonds, or None on failure.
         """
+        if not RDKIT_AVAILABLE:
+            logger.error("RDKit not available for molecular structure generation")
+            return None
+            
         try:
             mol = Chem.MolFromSmiles(smiles)
             if not mol:
@@ -159,10 +166,25 @@ class ProteinLigandAnimator:
         Returns:
             Path to the generated video file or None on failure.
         """
+        # Check for valid inputs
+        if not ligand_smiles or not isinstance(ligand_smiles, str) or len(ligand_smiles) < 2:
+            logger.error(f"Invalid SMILES string provided: {ligand_smiles}")
+            return None
+            
+        if not protein_name or not isinstance(protein_name, str):
+            logger.error(f"Invalid protein name provided: {protein_name}")
+            return None
+        
+        # Check if RDKit is available
+        if not RDKIT_AVAILABLE:
+            logger.error("RDKit is required for animation generation but is not available")
+            return None
+            
         video_id = str(uuid.uuid4())[:8]
         video_path = self.output_dir / f"binding_{video_id}.gif"
         
         logger.info(f"Creating binding animation for {protein_name} + {ligand_smiles}...")
+        logger.info(f"Output path will be: {video_path.absolute()}")
         
         # Create molecular structures
         protein_structure = self.create_protein_structure(120)
@@ -172,18 +194,28 @@ class ProteinLigandAnimator:
             logger.error("Failed to generate ligand structure. Aborting animation.")
             return None
 
+        logger.info("Successfully generated molecular structures")
+        logger.info(f"Protein atoms: {protein_structure['n_atoms']}, Ligand atoms: {ligand_structure['n_atoms']}")
+        
         # Set up the figure
-        fig = plt.figure(figsize=(16, 10), facecolor='#1E1E1E')
-        gs = gridspec.GridSpec(2, 3, figure=fig, height_ratios=[3, 1], width_ratios=[1, 1, 1])
-        
-        ax_main = fig.add_subplot(gs[0, :], projection='3d', facecolor='#1E1E1E')
-        ax_info1 = fig.add_subplot(gs[1, 0], facecolor='#2D2D2D')
-        ax_info2 = fig.add_subplot(gs[1, 1], facecolor='#2D2D2D')
-        ax_info3 = fig.add_subplot(gs[1, 2], facecolor='#2D2D2D')
-        
-        fig.subplots_adjust(hspace=0.3, wspace=0.3)
+        try:
+            fig = plt.figure(figsize=(16, 10), facecolor='#1E1E1E')
+            gs = gridspec.GridSpec(2, 3, figure=fig, height_ratios=[3, 1], width_ratios=[1, 1, 1])
+            
+            ax_main = fig.add_subplot(gs[0, :], projection='3d', facecolor='#1E1E1E')
+            ax_info1 = fig.add_subplot(gs[1, 0], facecolor='#2D2D2D')
+            ax_info2 = fig.add_subplot(gs[1, 1], facecolor='#2D2D2D')
+            ax_info3 = fig.add_subplot(gs[1, 2], facecolor='#2D2D2D')
+            
+            fig.subplots_adjust(hspace=0.3, wspace=0.3)
+            
+            logger.info("Starting animation generation with FuncAnimation")
+        except Exception as e:
+            logger.error(f"Error setting up matplotlib figure: {e}")
+            return None
 
         def animate_frame(frame):
+            # ...existing code...
             ax_main.clear()
             
             # --- Animation Phases ---
@@ -299,17 +331,23 @@ class ProteinLigandAnimator:
             
             return []
         
-        anim = FuncAnimation(fig, animate_frame, frames=self.frames, interval=1000/self.fps, blit=False)
-        
         try:
+            anim = FuncAnimation(fig, animate_frame, frames=self.frames, interval=1000/self.fps, blit=False)
+            
+            logger.info(f"Saving animation to {video_path}")
             writer = PillowWriter(fps=self.fps)
             anim.save(video_path, writer=writer, dpi=120)
+            logger.info(f"Animation saved successfully")
+            
         except Exception as e:
             logger.error(f"Error saving animation: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             plt.close(fig)
             return None
+        finally:
+            plt.close(fig)
         
-        plt.close(fig)
         logger.info(f"Animation saved to: {video_path}")
         return str(video_path)
     
