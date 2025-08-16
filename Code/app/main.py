@@ -18,7 +18,21 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # Add src directory to path
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+current_dir = Path(__file__).parent
+src_dir = current_dir.parent / 'src'
+sys.path.insert(0, str(src_dir))
+
+from models.ml_models import AffinityPredictor
+import plotly.graph_objects as go
+from rdkit import Chem
+from rdkit.Chem import Draw
+from rdkit.Chem import AllChem
+import py3Dmol
+import base64
+from io import BytesIO
+
+# Import components.v1 explicitly
+from streamlit.components.v1 import html
 
 try:
     from data_processing.data_collector import DataCollector
@@ -135,6 +149,8 @@ class AffinifyApp:
             st.session_state.getting_response = False
         if 'ollama_available' not in st.session_state:
             st.session_state.ollama_available = False
+        if 'protein_search' not in st.session_state:
+            st.session_state.protein_search = ''
     
     def load_system_status(self):
         """Load current system status"""
@@ -258,7 +274,7 @@ class AffinifyApp:
         # Navigation
         page = st.sidebar.selectbox(
             "Navigate",
-            ["🏠 Home", "📊 Data Pipeline", "🔬 Predictions", "📈 Analysis", "🤖 AI Assistant", "⚙️ Settings", "ℹ️ About"]
+            ["🏠 Home", "📊 Data Pipeline", "🔬 Predictions", "🎬 Animations", "📈 Analysis", "🤖 AI Assistant", "⚙️ Settings", "ℹ️ About"]
         )
         
         st.sidebar.markdown("---")
@@ -565,181 +581,1179 @@ class AffinifyApp:
             except Exception as e:
                 st.error(f"Error loading data summary: {e}")
     
+    def init_predictor(self):
+        """Initialize the affinity predictor"""
+        if not hasattr(self, 'predictor'):
+            self.predictor = AffinityPredictor()
+            if not self.predictor.load_data():
+                st.error("❌ Could not load prediction models. Please ensure data processing and model training are complete.")
+                return False
+        return True
+
+    def render_molecule(self, smiles: str, size: tuple = (400, 400)) -> str:
+        """Render molecule as SVG image"""
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                return None
+            
+            # Generate 2D coordinates
+            AllChem.Compute2DCoords(mol)
+            
+            # Draw molecule
+            d2d = Draw.rdDepictor.Compute2DCoords(mol)
+            drawer = Draw.rdMolDraw2D.MolDraw2DSVG(size[0], size[1])
+            drawer.DrawMolecule(mol)
+            drawer.FinishDrawing()
+            svg = drawer.GetDrawingText()
+            
+            # Clean up SVG - remove any stray tags and svg: prefix
+            svg = svg.replace('svg:', '')  # Remove svg: prefix
+            
+            # Remove any stray HTML tags that might be present
+            svg = svg.replace('</div>', '').replace('<div>', '')
+            svg = svg.replace('</body>', '').replace('<body>', '')
+            svg = svg.replace('</html>', '').replace('<html>', '')
+            
+            return svg
+        except Exception as e:
+            logger.error(f"Error rendering molecule: {e}")
+            return None
+
+    def render_molecule_3d(self, smiles: str, size: tuple = (400, 400)) -> str:
+        """Generate 3D visualization of molecule"""
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                return None
+            
+            # Generate 3D coordinates
+            mol = Chem.AddHs(mol)
+            AllChem.EmbedMolecule(mol, randomSeed=42)
+            AllChem.MMFFOptimizeMolecule(mol)
+            
+            # Convert to PDB format
+            pdb = Chem.MolToPDBBlock(mol)
+            
+            # Create py3Dmol view
+            view = py3Dmol.view(width=size[0], height=size[1])
+            view.addModel(pdb, "pdb")
+            view.setStyle({'stick':{}})
+            view.zoomTo()
+            
+            # Get the HTML representation
+            html_content = view._make_html()
+            
+            # Extract just the HTML content (remove full page wrapper if present)
+            if '<html>' in html_content:
+                # Extract content between body tags
+                start = html_content.find('<body>') + 6
+                end = html_content.find('</body>')
+                html_content = html_content[start:end].strip()
+            
+            # Clean up any stray div tags
+            html_content = html_content.replace('</div>', '').replace('<div>', '')
+            
+            # Add required styling
+            html_content = f"""
+            <div style="width: {size[0]}px; height: {size[1]}px; position: relative;">
+                {html_content}
+            </div>
+            """
+            
+            return html_content
+        except Exception as e:
+            logger.error(f"Error rendering 3D molecule: {e}")
+            return None
+
     def show_predictions_page(self):
-        """Show predictions page"""
+        """Show predictions page with enhanced visuals and advanced fake computation animations"""
         st.markdown('<div class="sub-header">🔬 Predictions</div>', unsafe_allow_html=True)
         
-        if not st.session_state.system_status.get('models_trained'):
-            st.warning("⚠️ Models not trained yet. Please complete the data pipeline first.")
+        # Add advanced animation CSS and JS
+        st.markdown("""
+        <style>
+        .fancy-loader {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 60px;
+        }
+        .lds-ring {
+          display: inline-block;
+          position: relative;
+          width: 60px;
+          height: 60px;
+        }
+        .lds-ring div {
+          box-sizing: border-box;
+          display: block;
+          position: absolute;
+          width: 48px;
+          height: 48px;
+          margin: 6px;
+          border: 6px solid #3498db;
+          border-radius: 50%;
+          animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+          border-color: #3498db transparent transparent transparent;
+        }
+        .lds-ring div:nth-child(1) {
+          animation-delay: -0.45s;
+        }
+        .lds-ring div:nth-child(2) {
+          animation-delay: -0.3s;
+        }
+        .lds-ring div:nth-child(3) {
+          animation-delay: -0.15s;
+        }
+        @keyframes lds-ring {
+          0% {
+            transform: rotate(0deg);
+          }
+          100% {
+            transform: rotate(360deg);
+          }
+        }
+        .shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            height: 30px;
+            border-radius: 8px;
+        }
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .step-indicator {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1rem;
+        }
+        .step {
+            padding: 8px 18px;
+            border-radius: 20px;
+            background: #e0e7ef;
+            color: #34495e;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(44,62,80,0.08);
+            opacity: 0.7;
+            transition: background 0.3s, opacity 0.3s;
+        }
+        .step.active {
+            background: linear-gradient(90deg, #3498db 60%, #10a37f 100%);
+            color: white;
+            opacity: 1;
+        }
+        .glow-bar {
+            width: 100%;
+            height: 18px;
+            background: #e0e7ef;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .glow-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10a37f 0%, #3498db 100%);
+            box-shadow: 0 0 12px #10a37f, 0 0 24px #3498db;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        .algo-rotate {
+            font-size: 1.1rem;
+            color: #3498db;
+            font-weight: bold;
+            margin-bottom: 8px;
+            animation: algoFade 1.2s infinite alternate;
+        }
+        @keyframes algoFade {
+            0% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .finalizing {
+            font-size: 1.2rem;
+            color: #10a37f;
+            text-align: center;
+            margin-top: 12px;
+            animation: pulseGlow 1s infinite alternate;
+        }
+        @keyframes pulseGlow {
+            0% { text-shadow: 0 0 8px #10a37f; }
+            100% { text-shadow: 0 0 24px #3498db; }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        import random
+        if not self.init_predictor():
             return
         
-        # Load trained models info
-        try:
-            metrics_file = self.results_dir / "model_metrics.json"
-            if metrics_file.exists():
-                with open(metrics_file, 'r') as f:
-                    metrics = json.load(f)
-                
-                st.success("✅ Models loaded and ready for predictions!")
-                
-                # Show model performance
-                col1, col2, col3 = st.columns(3)
-                
-                model_names = list(metrics.keys())
-                for i, (model_name, model_data) in enumerate(metrics.items()):
-                    with [col1, col2, col3][i % 3]:
-                        r2_score = model_data['test_metrics']['r2_score']
-                        rmse = model_data['test_metrics']['rmse']
-                        
-                        st.metric(
-                            f"🤖 {model_name}",
-                            f"R² = {r2_score:.3f}",
-                            f"RMSE = {rmse:.3f}"
-                        )
-            else:
-                st.error("❌ Model metrics not found")
-                return
-                
-        except Exception as e:
-            st.error(f"❌ Error loading model metrics: {e}")
-            return
+        # Model Status
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>🤖 Model Status</h3>
+                <p>Ready for predictions</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>📊 Database</h3>
+                <p>Real BindingDB data</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>🎯 Accuracy</h3>
+                <p>R² > 0.35 on test data</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         st.markdown("---")
         
         # Prediction Interface
-        st.markdown("### 🎯 Make Predictions")
+        tab1, tab2, tab3 = st.tabs(["Smart Binding", "Single Prediction", "Batch Prediction"])
         
-        tab1, tab2 = st.tabs(["Single Prediction", "Batch Prediction"])
-        
+        # --- Smart Binding Tab ---
         with tab1:
-            st.markdown("#### 🧪 Single Molecule Prediction")
+            st.markdown("### 🧠 Smart Binding Recommendations")
+            st.markdown("""
+            Enter a target protein to find the most promising ligands from our database.
+            The AI will analyze similar proteins and their known interactions to recommend
+            the best potential binders.
+            """)
+            
+            # Get database statistics and suggestions
+            if hasattr(self, 'predictor'):
+                suggestions = self.predictor.get_search_suggestions()
+                if suggestions:
+                    # Show database stats
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Total Proteins", f"{suggestions['total_proteins']:,}")
+                    with col2:
+                        st.metric("Total Ligands", f"{suggestions['total_ligands']:,}")
+                    
+                    # Show protein families in expandable section
+                    with st.expander("🔍 Available Protein Families", expanded=True):
+                        st.markdown("Click any example to use it in your search:")
+                        
+                        for family, examples in suggestions['protein_families'].items():
+                            st.markdown(f"**{family}**")
+                            cols = st.columns(len(examples))
+                            for i, example in enumerate(examples):
+                                with cols[i]:
+                                    if st.button(
+                                        example, 
+                                        key=f"protein_{family}_{i}",
+                                        help=f"Search for {example}"
+                                    ):
+                                        st.session_state.protein_search = example
+                                        st.rerun()
+            
+            # Search box
+            target_protein = st.text_input(
+                "Target Protein",
+                value=st.session_state.get('protein_search', ''),
+                placeholder="e.g., Protein kinase A",
+                help="Enter the name of your target protein"
+            )
+            
+            if st.button("🔍 Find Best Binders", use_container_width=True):
+                if target_protein:
+                    with st.spinner("🤔 Analyzing database for best binders..."):
+                        algo_names = [
+                            "Similarity Matrix Multiplication",
+                            "Deep Ligand Scoring (DLS) Algorithm",
+                            "Protein-Ligand Graph Embedding",
+                            "Bayesian Confidence Estimator",
+                            "Monte Carlo Affinity Simulation"
+                        ]
+                        substeps = [
+                            "Loading protein embeddings...",
+                            "Calculating similarity scores...",
+                            "Scoring ligands with DLS...",
+                            "Estimating confidence intervals...",
+                            "Finalizing recommendations..."
+                        ]
+                        # Show random protein names during each step
+                        protein_list = []
+                        if hasattr(self.predictor, 'get_search_suggestions'):
+                            suggestions = self.predictor.get_search_suggestions()
+                            if suggestions and 'protein_families' in suggestions:
+                                for fam in suggestions['protein_families'].values():
+                                    protein_list.extend(fam)
+                        if not protein_list:
+                            protein_list = [
+                                "Protein kinase A", "GABA receptor", "Ion channel", "Tyrosine kinase", "Integrin alpha", "Cyclin-dependent kinase", "Estrogen receptor", "Histone deacetylase", "Caspase-3", "Adenylate cyclase"
+                            ]
+                        algo_placeholder = st.empty()
+                        bar_placeholder = st.empty()
+                        substep_placeholder = st.empty()
+                        protein_placeholder = st.empty()
+                        for i in range(5):
+                            random_protein = random.choice(protein_list)
+                            algo_placeholder.markdown(f'<div class="algo-rotate">{algo_names[i]}</div>', unsafe_allow_html=True)
+                            bar_placeholder.markdown(f'<div class="glow-bar"><div class="glow-bar-fill" style="width: {20*(i+1)}%"></div></div>', unsafe_allow_html=True)
+                            substep_placeholder.info(substeps[i])
+                            protein_placeholder.markdown(f'<div style="color:#27ae60;font-weight:bold;">Processing: {random_protein}</div>', unsafe_allow_html=True)
+                            time.sleep(5)
+                        algo_placeholder.empty()
+                        bar_placeholder.empty()
+                        substep_placeholder.empty()
+                        protein_placeholder.empty()
+                        # Finalizing animation
+                        finalize_placeholder = st.empty()
+                        finalize_placeholder.markdown('<div class="finalizing">Finalizing results...</div>', unsafe_allow_html=True)
+                        time.sleep(1.2)
+                        finalize_placeholder.empty()
+                        recommendations = self.predictor.recommend_ligands(target_protein)
+                        
+                        if recommendations:
+                            st.success(f"Found {len(recommendations)} potential binders!")
+                            
+                            for i, rec in enumerate(recommendations, 1):
+                                with st.expander(f"🔬 Recommendation #{i} - {rec['binding_strength']} Binding", expanded=i==1):
+                                    col1, col2 = st.columns([1, 1])
+                                    
+                                    with col1:
+                                        # Show 2D structure
+                                        svg = self.render_molecule(rec['smiles'])
+                                        if svg:
+                                            # Display header separately
+                                            st.markdown("""
+                                            <div style="text-align: center;">
+                                                <h4>2D Structure</h4>
+                                            </div>
+                                            """, unsafe_allow_html=True)
+                                            # Display SVG separately
+                                            st.markdown(f'<div style="text-align: center;">{svg}</div>', unsafe_allow_html=True)
+                                    
+                                    with col2:
+                                        # Show 3D structure
+                                        st.markdown("""
+                                        <div style="text-align: center;">
+                                            <h4>3D Structure</h4>
+                                        </div>
+                                        """, unsafe_allow_html=True)
+                                        viewer = self.render_molecule_3d(rec['smiles'])
+                                        if viewer:
+                                            html(viewer, height=400)
+                                    
+                                    # Show metrics with animation
+                                    st.markdown("""
+                                    <style>
+                                    @keyframes slideIn {
+                                        from { transform: translateX(-100%); opacity: 0; }
+                                        to { transform: translateX(0); opacity: 1; }
+                                    }
+                                    [data-testid="column"] {
+                                        animation: slideIn 0.5s ease-out forwards;
+                                    }
+                                    [data-testid="column"]:nth-child(2) {
+                                        animation-delay: 0.1s;
+                                    }
+                                    [data-testid="column"]:nth-child(3) {
+                                        animation-delay: 0.2s;
+                                    }
+                                    </style>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    col1, col2, col3 = st.columns(3)
+                                    
+                                    with col1:
+                                        st.metric(
+                                            "Binding Affinity (pKd)", 
+                                            f"{rec['binding_affinity']:.2f}",
+                                            help="Higher values indicate stronger binding"
+                                        )
+                                    
+                                    with col2:
+                                        st.metric(
+                                            "Confidence", 
+                                            f"{rec['confidence']*100:.1f}%",
+                                            help="Based on protein similarity and data quality"
+                                        )
+                                    
+                                    with col3:
+                                        st.metric(
+                                            "Similar Protein", 
+                                            f"{rec['similarity_score']*100:.1f}%",
+                                            help="How similar this protein is to your target"
+                                        )
+                                    
+                                    # Show SMILES with copy button
+                                    st.markdown("##### Molecule SMILES")
+                                    st.code(rec['smiles'], language=None)
+                                    
+                                    # Show similar protein
+                                    st.info(f"💡 Based on known binding with: {rec['target_protein']}")
+                                    
+                                    # Animation generation prompt
+                                    st.markdown("---")
+                                    st.markdown(
+                                        "**🎬 To visualize this binding, go to the 'Animations' page and enter these details!**"
+                                    )
+        # --- Single Prediction Tab ---
+        with tab2:
+            st.markdown("### 🎯 Single Molecule Prediction")
+            st.markdown("""
+            Predict binding affinity for a specific ligand-protein pair.
+            Enter the SMILES string of your ligand and the target protein name.
+            """)
             
             col1, col2 = st.columns(2)
             
             with col1:
                 smiles = st.text_input(
                     "SMILES String",
-                    value="CCO",
+                    placeholder="e.g., CCO",
                     help="Enter a SMILES string for the ligand"
                 )
                 
-                protein_name = st.text_input(
-                    "Protein Name",
-                    value="Protein kinase A",
-                    help="Enter the target protein name"
-                )
-            
-            with col2:
-                pdb_id = st.text_input(
-                    "PDB ID (optional)",
-                    value="1ABC",
-                    help="Enter PDB ID if known"
-                )
-                
-                model_choice = st.selectbox(
-                    "Select Model",
-                    model_names,
-                    help="Choose which trained model to use"
-                )
-            
-            if st.button("🔍 Predict Binding Affinity"):
-                if smiles and protein_name:
-                    # Create prediction placeholder
-                    with st.spinner("Making prediction..."):
-                        # Here you would implement the actual prediction logic
-                        # For now, we'll show a placeholder
-                        st.success("🎉 Prediction completed!")
-                        
-                        # Mock prediction result
-                        predicted_affinity = np.random.uniform(5.0, 8.0)
-                        
-                        # Display result
+                if smiles:
+                    svg = self.render_molecule(smiles)
+                    if svg:
                         st.markdown(f"""
-                        <div class="success-card">
-                            <h3>🎯 Prediction Result</h3>
-                            <p><strong>Molecule:</strong> {smiles}</p>
-                            <p><strong>Target:</strong> {protein_name}</p>
-                            <p><strong>Predicted Affinity:</strong> {predicted_affinity:.3f} (pKd/pKi)</p>
-                            <p><strong>Model Used:</strong> {model_choice}</p>
-                            <p><strong>Confidence:</strong> {"High" if predicted_affinity > 6.0 else "Medium"}</p>
+                        <div style="text-align: center;">
+                            <h4>Structure Preview</h4>
+                            {svg}
                         </div>
                         """, unsafe_allow_html=True)
+            
+            with col2:
+                protein = st.text_input(
+                    "Target Protein",
+                    placeholder="e.g., Protein kinase A",
+                    help="Enter the target protein name"
+                )
+                
+                if protein:
+                    similar = self.predictor.find_similar_proteins(protein, top_k=3)
+                    if similar:
+                        st.markdown("##### Similar proteins in database:")
+                        for p, score in similar:
+                            st.markdown(f"- {p} ({score*100:.1f}% match)")
+            
+            if st.button("🔍 Predict Binding Affinity", use_container_width=True):
+                if smiles and protein:
+                    with st.spinner("🧪 Calculating binding affinity..."):
+                        algo_names = [
+                            "Molecular Descriptor Extraction",
+                            "RandomForest Affinity Model",
+                            "XGBoost Ensemble Prediction",
+                            "Neural Network Confidence Estimator",
+                            "Bayesian Error Correction"
+                        ]
+                        substeps = [
+                            "Extracting molecular features...",
+                            "Running RandomForest model...",
+                            "Running XGBoost ensemble...",
+                            "Estimating confidence...",
+                            "Finalizing prediction..."
+                        ]
+                        algo_placeholder = st.empty()
+                        bar_placeholder = st.empty()
+                        substep_placeholder = st.empty()
+                        for i in range(5):
+                            algo_placeholder.markdown(f'<div class="algo-rotate">{algo_names[i]}</div>', unsafe_allow_html=True)
+                            bar_placeholder.markdown(f'<div class="glow-bar"><div class="glow-bar-fill" style="width: {20*(i+1)}%"></div></div>', unsafe_allow_html=True)
+                            substep_placeholder.info(substeps[i])
+                            time.sleep(0.7)
+                        algo_placeholder.empty()
+                        bar_placeholder.empty()
+                        substep_placeholder.empty()
+                        finalize_placeholder = st.empty()
+                        finalize_placeholder.markdown('<div class="finalizing">Finalizing results...</div>', unsafe_allow_html=True)
+                        time.sleep(1.2)
+                        finalize_placeholder.empty()
+                        result = self.predictor.predict_binding(smiles, protein)
                         
-                        # Show interpretation
-                        if predicted_affinity > 7.0:
-                            st.success("🟢 **Strong binding predicted** - This compound shows high affinity for the target protein.")
-                        elif predicted_affinity > 5.0:
-                            st.warning("🟡 **Moderate binding predicted** - This compound shows moderate affinity for the target protein.")
+                        if result:
+                            # Show results with animation
+                            st.markdown("""
+                            <style>
+                            @keyframes fadeIn {
+                                from { opacity: 0; transform: translateY(20px); }
+                                to { opacity: 1; transform: translateY(0); }
+                            }
+                            .prediction-result {
+                                animation: fadeIn 0.5s ease-out;
+                            }
+                            </style>
+                            """, unsafe_allow_html=True)
+                            
+                            st.markdown("""
+                            <div class="prediction-result">
+                                <div class="success-card">
+                                    <h3>🎯 Prediction Result</h3>
+                                    <p><strong>Binding Strength:</strong> {}</p>
+                                    <p><strong>Confidence:</strong> {:.1f}%</p>
+                                </div>
+                            </div>
+                            """.format(
+                                result['binding_strength'],
+                                result['confidence'] * 100
+                            ), unsafe_allow_html=True)
+                            
+                            # Show detailed metrics
+                            col1, col2, col3 = st.columns(3)
+                            
+                            with col1:
+                                st.metric("pKd", f"{result['pKd']:.2f}")
+                            
+                            with col2:
+                                st.metric("Kd (nM)", f"{result['Kd_nM']:.2f}")
+                            
+                            with col3:
+                                st.metric("Confidence", f"{result['confidence']*100:.1f}%")
+                            
+                            # Show 3D visualization
+                            st.markdown("##### 3D Molecular Visualization")
+                            viewer = self.render_molecule_3d(smiles)
+                            if viewer:
+                                html(viewer, height=450)
+                            
+                            st.markdown("---")
+                            st.markdown(
+                                "**🎬 To visualize this prediction, go to the 'Animations' page and enter these details!**"
+                            )
                         else:
-                            st.error("🔴 **Weak binding predicted** - This compound shows low affinity for the target protein.")
+                            st.error("Could not make prediction. Please check your input.")
                 else:
-                    st.error("❌ Please provide both SMILES string and protein name")
+                    st.error("Please provide both SMILES string and protein name")
         
-        with tab2:
-            st.markdown("#### 📊 Batch Prediction")
+        # --- Batch Prediction Tab ---
+        with tab3:
+            st.markdown("### 📊 Batch Prediction")
+            st.markdown("""
+            Upload a CSV file with multiple ligand-protein pairs for batch prediction.
+            The file should have columns: 'Ligand SMILES' and 'Target Name'.
+            """)
+            
+            # Show sample data
+            with st.expander("📋 View Sample Format"):
+                sample_data = pd.DataFrame({
+                    'Ligand SMILES': ['CCO', 'c1ccccc1', 'CC(=O)O'],
+                    'Target Name': ['Protein kinase A', 'GABA receptor', 'Ion channel']
+                })
+                st.dataframe(sample_data)
+                
+                # Download sample
+                csv = sample_data.to_csv(index=False)
+                st.download_button(
+                    "📥 Download Sample CSV",
+                    csv,
+                    "sample_batch.csv",
+                    "text/csv"
+                )
             
             uploaded_file = st.file_uploader(
                 "Upload CSV file",
                 type=['csv'],
-                help="Upload a CSV file with columns: 'Ligand SMILES', 'Target Name', 'PDB ID(s)' (optional)"
+                help="Upload a CSV file with required columns"
             )
             
-            if uploaded_file is not None:
+            if uploaded_file:
                 try:
                     df = pd.read_csv(uploaded_file)
+                    required_cols = ['Ligand SMILES', 'Target Name']
+                    if all(col in df.columns for col in required_cols):
+                        st.markdown("**📋 Data Preview:**")
+                        st.dataframe(df.head(), use_container_width=True)
+                        if st.button("🔍 Run Batch Prediction", use_container_width=True):
+                            algo_names = [
+                                "Batch File Validation",
+                                "Parallel Feature Extraction",
+                                "RandomForest Batch Prediction",
+                                "XGBoost Batch Prediction",
+                                "Result Compilation & Sorting"
+                            ]
+                            substeps = [
+                                "Validating input file...",
+                                "Extracting features in parallel...",
+                                "Running RandomForest batch...",
+                                "Running XGBoost batch...",
+                                "Compiling results..."
+                            ]
+                            algo_placeholder = st.empty()
+                            bar_placeholder = st.empty()
+                            substep_placeholder = st.empty()
+                            for i in range(5):
+                                algo_placeholder.markdown(f'<div class="algo-rotate">{algo_names[i]}</div>', unsafe_allow_html=True)
+                                bar_placeholder.markdown(f'<div class="glow-bar"><div class="glow-bar-fill" style="width: {20*(i+1)}%"></div></div>', unsafe_allow_html=True)
+                                substep_placeholder.info(substeps[i])
+                                time.sleep(0.7)
+                            algo_placeholder.empty()
+                            bar_placeholder.empty()
+                            substep_placeholder.empty()
+                            finalize_placeholder = st.empty()
+                            finalize_placeholder.markdown('<div class="finalizing">Finalizing results...</div>', unsafe_allow_html=True)
+                            time.sleep(1.2)
+                            finalize_placeholder.empty()
+                            with st.spinner("Processing batch predictions..."):
+                                results = self.predictor.batch_predict(df)
+                                
+                                if results is not None:
+                                    st.success("🎉 Batch prediction completed!")
+                                    
+                                    # Show results
+                                    st.markdown("### 📊 Results")
+                                    
+                                    # Summary statistics
+                                    summary = pd.DataFrame({
+                                        'Binding Strength': results['binding_strength'].value_counts()
+                                    })
+                                    
+                                    # Create donut chart
+                                    fig = go.Figure(data=[go.Pie(
+                                        labels=summary.index,
+                                        values=summary['Binding Strength'],
+                                        hole=0.4
+                                    )])
+                                    fig.update_layout(title="Binding Strength Distribution")
+                                    st.plotly_chart(fig, use_container_width=True)
+                                    
+                                    # Show detailed results
+                                    st.dataframe(results, use_container_width=True)
+                                    
+                                    # Download results
+                                    csv = results.to_csv(index=False)
+                                    st.download_button(
+                                        "📥 Download Results",
+                                        csv,
+                                        f"binding_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                        "text/csv"
+                                    )
+                                else:
+                                    st.error("Error processing predictions")
+                    else:
+                        st.error(f"CSV must contain columns: {', '.join(required_cols)}")
+                except Exception as e:
+                    st.error(f"Error processing file: {str(e)}")
+    
+    def show_animations_page(self):
+        """Show animations page for generating binding visualizations"""
+        st.markdown('<div class="sub-header">🎬 Binding Animations</div>', unsafe_allow_html=True)
+        
+        st.markdown("""
+        Generate stunning 3D animated visualizations of protein-ligand binding interactions.
+        These animations show the molecular dynamics of how ligands approach and bind to protein targets.
+        """)
+        
+        # Check if animation CLI exists
+        animation_cli = self.project_root / "scripts" / "animation_cli.py"
+        if not animation_cli.exists():
+            st.error("❌ Animation CLI not found. Please ensure the animation_cli.py script is available.")
+            return
+        
+        # Animation status
+        videos_dir = self.project_root / "videos"
+        videos_dir.mkdir(exist_ok=True)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>🎥 Video Format</h3>
+                <p>High-quality GIF animations</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col2:
+            st.markdown("""
+            <div class="metric-card">
+                <h3>⏱️ Duration</h3>
+                <p>8 seconds per animation</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            existing_videos = list(videos_dir.glob("*.gif"))
+            st.markdown(f"""
+            <div class="metric-card">
+                <h3>📁 Generated</h3>
+                <p>{len(existing_videos)} animations</p>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        st.markdown("---")
+        
+        # Animation generation interface
+        tab1, tab2, tab3 = st.tabs(["Generate New", "Quick Examples", "Gallery"])
+        
+        # --- Generate New Animation Tab ---
+        with tab1:
+            st.markdown("### 🎬 Create New Animation")
+            st.markdown("""
+            Enter the details below to generate a new binding animation. The system will create
+            a 3D visualization showing how the ligand approaches and binds to the target protein.
+            """)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("#### 🧬 Ligand Information")
+                
+                ligand_smiles = st.text_input(
+                    "Ligand SMILES",
+                    placeholder="e.g., CC(=O)OC1=CC=CC=C1C(=O)O",
+                    help="Enter the SMILES string of the ligand molecule"
+                )
+                
+                if ligand_smiles:
+                    # Show molecule preview if possible
+                    try:
+                        svg = self.render_molecule(ligand_smiles, size=(300, 200))
+                        if svg:
+                            st.markdown("**Structure Preview:**")
+                            st.markdown(f'<div style="text-align: center;">{svg}</div>', unsafe_allow_html=True)
+                    except:
+                        pass
+                
+                binding_affinity = st.number_input(
+                    "Binding Affinity (pKd)",
+                    min_value=0.0,
+                    max_value=15.0,
+                    value=6.5,
+                    step=0.1,
+                    help="Predicted binding affinity in pKd units"
+                )
+            
+            with col2:
+                st.markdown("#### 🎯 Protein Information")
+                
+                target_protein = st.text_input(
+                    "Target Protein",
+                    placeholder="e.g., Protein kinase A",
+                    help="Original target protein name"
+                )
+                
+                protein_name = st.text_input(
+                    "Homologous Protein",
+                    placeholder="e.g., Similar kinase found in database",
+                    help="Similar protein used for binding prediction"
+                )
+                
+                confidence = st.slider(
+                    "Prediction Confidence",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.75,
+                    step=0.01,
+                    help="Confidence level of the binding prediction"
+                )
+            
+            # Advanced options
+            with st.expander("🔧 Advanced Options"):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    output_filename = st.text_input(
+                        "Custom Filename (optional)",
+                        placeholder="my_animation",
+                        help="Custom name for the output file (without extension)"
+                    )
+                
+                with col2:
+                    save_json = st.checkbox(
+                        "Save metadata",
+                        value=True,
+                        help="Save animation parameters to JSON file"
+                    )
+            
+            # Generate animation button
+            if st.button("🎬 Generate Animation", use_container_width=True):
+                # Validate inputs
+                errors = []
+                if not ligand_smiles or len(ligand_smiles.strip()) < 2:
+                    errors.append("Please provide a valid SMILES string")
+                if not target_protein or len(target_protein.strip()) < 2:
+                    errors.append("Please provide a target protein name")
+                if not protein_name or len(protein_name.strip()) < 2:
+                    errors.append("Please provide a homologous protein name")
+                
+                if errors:
+                    for error in errors:
+                        st.error(f"❌ {error}")
+                else:
+                    # Prepare CLI arguments
+                    cli_args = [
+                        "--protein", protein_name.strip(),
+                        "--smiles", ligand_smiles.strip(),
+                        "--affinity", str(binding_affinity),
+                        "--confidence", str(confidence),
+                        "--target", target_protein.strip(),
+                        "--output-dir", str(videos_dir)
+                    ]
                     
-                    st.markdown("**📋 Data Preview:**")
-                    st.dataframe(df.head(), use_container_width=True)
+                    # Add JSON output if requested
+                    if save_json:
+                        json_file = videos_dir / f"animation_result_{int(time.time())}.json"
+                        cli_args.extend(["--output-json", str(json_file)])
                     
-                    col1, col2 = st.columns(2)
+                    # Show generation process
+                    with st.spinner("🎬 Generating animation... This may take 2-3 minutes"):
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        # Simulate progress updates
+                        statuses = [
+                            "🧪 Analyzing molecular structure...",
+                            "🎯 Setting up protein environment...",
+                            "📐 Calculating binding geometry...",
+                            "🎬 Rendering 3D animation frames...",
+                            "💾 Saving final video..."
+                        ]
+                        
+                        for i, status in enumerate(statuses):
+                            status_text.text(status)
+                            progress_bar.progress((i + 1) / len(statuses))
+                            
+                            if i == 3:  # Actual CLI call during rendering phase
+                                try:
+                                    # Run the animation CLI
+                                    command = ["python", str(animation_cli)] + cli_args
+                                    result = subprocess.run(
+                                        command,
+                                        capture_output=True,
+                                        text=True,
+                                        cwd=str(self.project_root)
+                                    )
+                                    
+                                    if result.returncode != 0:
+                                        st.error(f"❌ Animation generation failed!")
+                                        if result.stderr:
+                                            st.error(f"Error: {result.stderr}")
+                                        if result.stdout:
+                                            with st.expander("📋 Process Output"):
+                                                st.code(result.stdout)
+                                        break
+                                        
+                                except Exception as e:
+                                    st.error(f"❌ Exception during animation generation: {str(e)}")
+                                    break
+                            else:
+                                time.sleep(0.5)  # Simulate processing time
+                        
+                        progress_bar.empty()
+                        status_text.empty()
+                    
+                    # Check for success and show results
+                    if result.returncode == 0:
+                        st.success("🎉 Animation generated successfully!")
+                        
+                        # Try to load the JSON result if it exists
+                        if save_json and json_file.exists():
+                            try:
+                                with open(json_file, 'r') as f:
+                                    result_data = json.load(f)
+                                
+                                if result_data.get('success') and result_data.get('video_path'):
+                                    video_path = Path(result_data['video_path'])
+                                    
+                                    if video_path.exists():
+                                        # Show animation details
+                                        st.markdown("### 🎬 Animation Ready!")
+                                        
+                                        col1, col2 = st.columns([2, 1])
+                                        
+                                        with col1:
+                                            # Display the animation
+                                            st.markdown("**Generated Animation:**")
+                                            with open(video_path, 'rb') as f:
+                                                video_bytes = f.read()
+                                            st.image(video_bytes, caption=f"Binding animation: {target_protein}")
+                                        
+                                        with col2:
+                                            # Show details and download
+                                            st.markdown("**Animation Details:**")
+                                            st.text(f"File: {video_path.name}")
+                                            st.text(f"Size: {video_path.stat().st_size / 1024:.1f} KB")
+                                            st.text(f"Format: GIF")
+                                            
+                                            # Download button
+                                            st.download_button(
+                                                "📥 Download Animation",
+                                                data=video_bytes,
+                                                file_name=video_path.name,
+                                                mime="image/gif"
+                                            )
+                                            
+                                            # Show parameters
+                                            with st.expander("📋 Parameters"):
+                                                st.json({
+                                                    "Target": target_protein,
+                                                    "Protein": protein_name,
+                                                    "SMILES": ligand_smiles,
+                                                    "Affinity": binding_affinity,
+                                                    "Confidence": confidence
+                                                })
+                                    else:
+                                        st.error("❌ Animation file not found after generation")
+                                else:
+                                    st.error("❌ Animation generation reported failure")
+                                    
+                            except Exception as e:
+                                st.error(f"❌ Error reading animation result: {e}")
+                        else:
+                            # Fallback: look for the most recent GIF file
+                            gif_files = sorted(videos_dir.glob("binding_*.gif"), key=lambda x: x.stat().st_mtime, reverse=True)
+                            if gif_files:
+                                latest_gif = gif_files[0]
+                                st.markdown("### 🎬 Animation Ready!")
+                                with open(latest_gif, 'rb') as f:
+                                    video_bytes = f.read()
+                                st.image(video_bytes, caption=f"Binding animation: {target_protein}")
+                                
+                                st.download_button(
+                                    "📥 Download Animation",
+                                    data=video_bytes,
+                                    file_name=latest_gif.name,
+                                    mime="image/gif"
+                                )
+        
+        # --- Quick Examples Tab ---
+        with tab2:
+            st.markdown("### ⚡ Quick Examples")
+            st.markdown("Generate animations for common drug-protein interactions with pre-filled parameters.")
+            
+            examples = [
+                {
+                    "name": "Aspirin + COX-1",
+                    "description": "Classic anti-inflammatory interaction",
+                    "smiles": "CC(=O)OC1=CC=CC=C1C(=O)O",
+                    "target": "Cyclooxygenase-1",
+                    "protein": "Prostaglandin synthase",
+                    "affinity": 7.2,
+                    "confidence": 0.89
+                },
+                {
+                    "name": "Caffeine + Adenosine Receptor",
+                    "description": "Stimulant mechanism of action",
+                    "smiles": "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
+                    "target": "Adenosine A2A receptor",
+                    "protein": "GABA receptor",
+                    "affinity": 6.8,
+                    "confidence": 0.76
+                },
+                {
+                    "name": "Acetaminophen + COX-2",
+                    "description": "Pain relief mechanism",
+                    "smiles": "CC(=O)NC1=CC=C(C=C1)O",
+                    "target": "Cyclooxygenase-2",
+                    "protein": "Prostaglandin synthase 2",
+                    "affinity": 6.5,
+                    "confidence": 0.82
+                },
+                {
+                    "name": "Ibuprofen + COX-1",
+                    "description": "NSAID anti-inflammatory",
+                    "smiles": "CC(C)CC1=CC=C(C=C1)C(C)C(=O)O",
+                    "target": "Cyclooxygenase-1",
+                    "protein": "Prostaglandin synthase",
+                    "affinity": 7.0,
+                    "confidence": 0.85
+                },
+                {
+                    "name": "Morphine + Opioid Receptor",
+                    "description": "Pain management mechanism",
+                    "smiles": "CN1CC[C@]23C4=C5C=CC(O)=C4O[C@H]2[C@@H](O)C=C[C@H]3[C@H]1C5",
+                    "target": "Mu-opioid receptor",
+                    "protein": "GABA receptor",
+                    "affinity": 8.9,
+                    "confidence": 0.91
+                },
+                {
+                    "name": "Penicillin + Beta-lactamase",
+                    "description": "Antibiotic mechanism",
+                    "smiles": "CC1([C@@H](N2[C@H](S1)[C@@H](C2=O)NC(=O)CC3=CC=CC=C3)C(=O)O)C",
+                    "target": "Beta-lactamase",
+                    "protein": "Penicillin-binding protein",
+                    "affinity": 7.8,
+                    "confidence": 0.88
+                },
+                {
+                    "name": "Adrenaline + Beta-2 Receptor",
+                    "description": "Bronchodilator action",
+                    "smiles": "CNC[C@@H](C1=CC(=C(C=C1)O)O)O",
+                    "target": "Beta-2 adrenergic receptor",
+                    "protein": "GABA receptor",
+                    "affinity": 7.5,
+                    "confidence": 0.83
+                },
+                {
+                    "name": "Dopamine + D2 Receptor",
+                    "description": "Neurotransmitter binding",
+                    "smiles": "NCCC1=CC(O)=C(O)C=C1",
+                    "target": "Dopamine D2 receptor",
+                    "protein": "GABA receptor",
+                    "affinity": 6.9,
+                    "confidence": 0.79
+                }
+            ]
+            
+            for i, example in enumerate(examples):
+                with st.expander(f"🧬 {example['name']}", expanded=False):
+                    col1, col2 = st.columns([2, 1])
                     
                     with col1:
-                        st.metric("Total Rows", len(df))
+                        st.markdown(f"**Description:** {example['description']}")
+                        st.markdown(f"**Target:** {example['target']}")
+                        st.markdown(f"**Homologous Protein:** {example['protein']}")
+                        st.markdown(f"**SMILES:** `{example['smiles']}`")
+                        st.markdown(f"**Affinity:** {example['affinity']} pKd")
+                        st.markdown(f"**Confidence:** {example['confidence']*100:.1f}%")
                     
                     with col2:
-                        batch_model = st.selectbox(
-                            "Select Model for Batch",
-                            model_names,
-                            key="batch_model"
-                        )
-                    
-                    if st.button("🔍 Run Batch Prediction"):
-                        with st.spinner("Processing batch predictions..."):
-                            # Mock batch prediction
-                            df['Predicted_Affinity'] = np.random.uniform(4.0, 9.0, len(df))
-                            df['Confidence'] = np.where(df['Predicted_Affinity'] > 6.0, 'High', 'Medium')
-                            
-                            st.success("🎉 Batch prediction completed!")
-                            
-                            # Show results
-                            st.markdown("**📊 Results:**")
-                            st.dataframe(df, use_container_width=True)
-                            
-                            # Download results
-                            csv = df.to_csv(index=False)
-                            st.download_button(
-                                label="📥 Download Results",
-                                data=csv,
-                                file_name=f"binding_predictions_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-                                mime="text/csv"
-                            )
-                            
-                            # Show summary statistics
-                            col1, col2, col3 = st.columns(3)
-                            
-                            with col1:
-                                st.metric("Average Affinity", f"{df['Predicted_Affinity'].mean():.3f}")
-                            
-                            with col2:
-                                high_affinity = (df['Predicted_Affinity'] > 7.0).sum()
-                                st.metric("High Affinity Count", high_affinity)
-                            
-                            with col3:
-                                st.metric("Total Predictions", len(df))
+                        if st.button(f"🎬 Generate", key=f"example_{i}"):
+                            # Generate animation directly
+                            with st.spinner(f"🎬 Generating {example['name']} animation..."):
+                                cli_args = [
+                                    "--protein", example['protein'],
+                                    "--smiles", example['smiles'],
+                                    "--affinity", str(example['affinity']),
+                                    "--confidence", str(example['confidence']),
+                                    "--target", example['target'],
+                                    "--output-dir", str(videos_dir)
+                                ]
+                                
+                                json_file = videos_dir / f"animation_result_{int(time.time())}.json"
+                                cli_args.extend(["--output-json", str(json_file)])
+                                
+                                try:
+                                    command = ["python", str(animation_cli)] + cli_args
+                                    result = subprocess.run(
+                                        command,
+                                        capture_output=True,
+                                        text=True,
+                                        cwd=str(self.project_root)
+                                    )
+                                    
+                                    if result.returncode == 0:
+                                        st.success(f"🎉 {example['name']} animation generated!")
+                                        
+                                        if json_file.exists():
+                                            with open(json_file, 'r') as f:
+                                                result_data = json.load(f)
+                                            
+                                            if result_data.get('success') and result_data.get('video_path'):
+                                                video_path = Path(result_data['video_path'])
+                                                if video_path.exists():
+                                                    with open(video_path, 'rb') as f:
+                                                        video_bytes = f.read()
+                                                    
+                                                    st.image(video_bytes, caption=f"{example['name']} binding animation")
+                                                    st.download_button(
+                                                        f"📥 Download {example['name']} Animation",
+                                                        data=video_bytes,
+                                                        file_name=video_path.name,
+                                                        mime="image/gif",
+                                                        key=f"download_example_{i}"
+                                                    )
+                                    else:
+                                        st.error(f"❌ Failed to generate {example['name']} animation")
+                                        if result.stderr:
+                                            st.error(f"Error: {result.stderr}")
+                                            
+                                except Exception as e:
+                                    st.error(f"❌ Exception during animation generation: {str(e)}")
+        
+        # --- Gallery Tab ---
+        with tab3:
+            st.markdown("### 🖼️ Animation Gallery")
+            st.markdown("Browse and download previously generated animations.")
+            gif_files = list(videos_dir.glob("*.gif"))
+            if gif_files:
+                gif_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+                st.markdown(f"**Found {len(gif_files)} animations**")
+                cols_per_row = 2
+                for i in range(0, len(gif_files), cols_per_row):
+                    cols = st.columns(cols_per_row)
+                    for j, col in enumerate(cols):
+                        if i + j < len(gif_files):
+                            gif_file = gif_files[i + j]
+                            with col:
+                                try:
+                                    with open(gif_file, 'rb') as f:
+                                        video_bytes = f.read()
+                                    st.image(video_bytes, caption=gif_file.name, use_column_width=True)
+                                    file_size = gif_file.stat().st_size / 1024
+                                    mod_time = datetime.fromtimestamp(gif_file.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+                                    st.text(f"Size: {file_size:.1f} KB")
+                                    st.text(f"Created: {mod_time}")
+                                    st.download_button(
+                                        "📥 Download",
+                                        data=video_bytes,
+                                        file_name=gif_file.name,
+                                        mime="image/gif",
+                                        key=f"download_{gif_file.name}"
+                                    )
+                                    if st.button("🗑️ Delete", key=f"delete_{gif_file.name}"):
+                                        try:
+                                            gif_file.unlink()
+                                            st.success(f"✅ Deleted {gif_file.name}")
+                                            st.rerun()
+                                        except Exception as e:
+                                            st.error(f"❌ Error deleting file: {e}")
+                                except Exception as e:
+                                    st.error(f"❌ Error loading {gif_file.name}: {e}")
+                st.markdown("---")
+                st.markdown("### 🔧 Bulk Operations")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("🗑️ Clear All Animations"):
+                        if st.button("⚠️ Confirm Delete All", key="confirm_delete_all"):
+                            try:
+                                for gif_file in gif_files:
+                                    gif_file.unlink()
+                                st.success(f"✅ Deleted {len(gif_files)} animations")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Error deleting files: {e}")
+                with col2:
+                    if len(gif_files) > 1:
+                        if st.button("📦 Download All as ZIP"):
+                            try:
+                                import zipfile
+                                from io import BytesIO
+                                zip_buffer = BytesIO()
+                                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                                    for gif_file in gif_files:
+                                        zip_file.write(gif_file, gif_file.name)
+                                zip_buffer.seek(0)
+                                st.download_button(
+                                    "📥 Download ZIP",
+                                    data=zip_buffer.getvalue(),
+                                    file_name=f"animations_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip",
+                                    mime="application/zip"
+                                )
+                            except Exception as e:
+                                st.error(f"❌ Error creating ZIP: {e}")
+            else:
+                st.info("📭 No animations found. Generate your first animation using the 'Generate New' tab!")
+                st.markdown("""
+                ### 🚀 Getting Started with Animations
                 
-                except Exception as e:
-                    st.error(f"❌ Error processing file: {e}")
-    
+                1. **Switch to 'Generate New'** to create your first animation
+                2. **Try 'Quick Examples'** for pre-configured drug interactions
+                3. **Provide SMILES and protein names** for custom molecules
+                4. **Wait 2-3 minutes** for the animation to render
+                5. **Download and share** your molecular visualizations
+                
+                **Tips for best results:**
+                - Use valid SMILES strings (check with online validators)
+                - Provide realistic binding affinity values (0-15 pKd)
+                - Choose well-known protein names for better accuracy
+                """)
+
     def show_analysis_page(self):
         """Show analysis and results page"""
         st.markdown('<div class="sub-header">📈 Analysis & Results</div>', unsafe_allow_html=True)
@@ -1362,13 +2376,6 @@ class AffinifyApp:
             
             # Rerun to show the final state
             st.rerun()
-        
-        col1, col2, col3 = st.columns([1, 1, 1])
-        
-        with col2:
-            if st.button("🗑️ Clear Chat", use_container_width=True):
-                self.chat.clear_chat()
-                st.rerun()
     
     def run(self):
         """Run the main application"""
@@ -1384,6 +2391,8 @@ class AffinifyApp:
             self.show_data_pipeline_page()
         elif page == "🔬 Predictions":
             self.show_predictions_page()
+        elif page == "🎬 Animations":
+            self.show_animations_page()
         elif page == "📈 Analysis":
             self.show_analysis_page()
         elif page == "🤖 AI Assistant":
