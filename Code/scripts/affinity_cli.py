@@ -20,6 +20,25 @@ from typing import Optional, Tuple, Dict, Any
 # Add src directory to path
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
+# Import unified configuration
+try:
+    from config.manager import get_config, get_config_manager
+    config = get_config()
+    config_manager = get_config_manager()
+    LOGGING_CONFIG = config.logging
+    DATA_CONFIG = config.data
+    MODELS_CONFIG = config.models
+    PATHS_CONFIG = config.paths
+except ImportError as e:
+    print(f"Warning: Could not import unified config: {e}")
+    # Fallback configuration
+    class FallbackConfig:
+        level = "INFO"
+        format = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        file = "logs/affinity_cli.log"
+    LOGGING_CONFIG = FallbackConfig()
+    config_manager = None
+
 try:
     from data_processing.data_collector import DataCollector
     from data_processing.feature_extractor import MolecularFeatureExtractor
@@ -29,9 +48,15 @@ except ImportError as e:
     print("Please ensure the src directory is properly set up.")
     sys.exit(1)
 
-# Configure logging
-def setup_logging(log_level='INFO'):
-    """Setup logging configuration"""
+# Configure logging using unified config
+def setup_logging(log_level=None):
+    """Setup logging configuration using unified config"""
+    if log_level is None:
+        log_level = getattr(LOGGING_CONFIG, 'level', 'INFO')
+    
+    log_file = getattr(LOGGING_CONFIG, 'file', 'logs/affinity_cli.log')
+    log_format = getattr(LOGGING_CONFIG, 'format', '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
     os.makedirs('logs', exist_ok=True)
     
     # Clear any existing handlers
@@ -40,9 +65,9 @@ def setup_logging(log_level='INFO'):
     
     logging.basicConfig(
         level=getattr(logging, log_level.upper()),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        format=log_format,
         handlers=[
-            logging.FileHandler('logs/affinity_cli.log', mode='w'),
+            logging.FileHandler(log_file, mode='w'),
             logging.StreamHandler(sys.stdout)
         ]
     )
@@ -483,16 +508,20 @@ class AffinifyCLI:
         return results
     
     def train_enhanced_random_forest(self, features: pd.DataFrame, target: pd.Series):
-        """Train RandomForest with enhanced hyperparameters"""
+        """Train RandomForest with parameters from unified config"""
         from sklearn.ensemble import RandomForestRegressor
         from sklearn.model_selection import train_test_split
         from sklearn.metrics import r2_score, mean_squared_error
         from sklearn.preprocessing import RobustScaler
         import joblib
         
+        # Get test size from config
+        test_size = getattr(DATA_CONFIG, 'test_size', 0.2) if config_manager else 0.2
+        random_state = getattr(DATA_CONFIG, 'random_state', 42) if config_manager else 42
+        
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(
-            features, target, test_size=0.2, random_state=42
+            features, target, test_size=test_size, random_state=random_state
         )
         
         # Scale features for better performance
@@ -500,20 +529,27 @@ class AffinifyCLI:
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
         
-        # Enhanced RandomForest with optimized hyperparameters
-        rf = RandomForestRegressor(
-            n_estimators=300,          # More trees for better performance
-            max_depth=25,              # Deeper trees
-            min_samples_split=5,       # Prevent overfitting
-            min_samples_leaf=2,        # Prevent overfitting
-            max_features='sqrt',       # Good for many features
-            bootstrap=True,
-            random_state=42,
-            n_jobs=-1                  # Use all cores
-        )
+        # Get RandomForest parameters from config
+        if config_manager:
+            rf_params = config_manager.get_model_params('RandomForest')
+        else:
+            # Fallback parameters
+            rf_params = {
+                'n_estimators': 300,
+                'max_depth': 25,
+                'min_samples_split': 5,
+                'min_samples_leaf': 2,
+                'max_features': 'sqrt',
+                'bootstrap': True,
+                'random_state': 42,
+                'n_jobs': -1
+            }
+        
+        # Enhanced RandomForest with parameters from config
+        rf = RandomForestRegressor(**rf_params)
         
         # Train the model
-        self.logger.info("Training enhanced RandomForest with 300 estimators...")
+        self.logger.info(f"Training enhanced RandomForest with {rf_params['n_estimators']} estimators...")
         rf.fit(X_train_scaled, y_train)
         
         # Make predictions
@@ -533,8 +569,10 @@ class AffinifyCLI:
         for feat, importance in feature_importance[:10]:
             self.logger.info(f"  {feat}: {importance:.4f}")
         
-        # Save model
-        model_file = Path("models") / "enhanced_randomforest_model.pkl"
+        # Save model using config path
+        models_dir = getattr(PATHS_CONFIG, 'models_dir', 'models') if config_manager else 'models'
+        model_file = Path(models_dir) / (getattr(MODELS_CONFIG, 'rf_file', 'enhanced_randomforest_model.pkl') if config_manager else 'enhanced_randomforest_model.pkl')
+        
         model_data = {
             'model': rf,
             'scaler': scaler,
@@ -594,6 +632,14 @@ class AffinifyCLI:
 
 def main():
     """Main CLI function"""
+    # Get defaults from config if available
+    default_sample_size = getattr(DATA_CONFIG, 'sample_size', 5000) if config_manager else 5000
+    default_max_rows = getattr(DATA_CONFIG, 'max_rows', 50000) if config_manager else 50000
+    default_test_size = getattr(DATA_CONFIG, 'test_size', 0.2) if config_manager else 0.2
+    default_data_source = getattr(config.cli, 'default_data_source', 'auto') if config_manager else 'auto'
+    default_models = getattr(config.cli, 'default_models', ['RandomForest', 'XGBoost']) if config_manager else ['RandomForest', 'XGBoost']
+    default_log_level = getattr(LOGGING_CONFIG, 'level', 'INFO') if config_manager else 'INFO'
+    
     parser = argparse.ArgumentParser(
         description="Affinify CLI - Unified data processing and model training",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -628,23 +674,23 @@ Examples:
     
     # Data options
     parser.add_argument('--data-source', choices=['bindingdb', 'sample', 'auto'], 
-                       default='auto', help='Data source to use')
-    parser.add_argument('--sample-size', type=int, default=5000,
-                       help='Size of sample dataset')
-    parser.add_argument('--max-rows', type=int, default=50000,
-                       help='Maximum rows to process from BindingDB')
+                       default=default_data_source, help='Data source to use')
+    parser.add_argument('--sample-size', type=int, default=default_sample_size,
+                       help=f'Size of sample dataset (default: {default_sample_size})')
+    parser.add_argument('--max-rows', type=int, default=default_max_rows,
+                       help=f'Maximum rows to process from BindingDB (default: {default_max_rows})')
     
     # Model options
     parser.add_argument('--models', nargs='+', 
                        choices=['RandomForest', 'XGBoost', 'NeuralNetwork'],
-                       default=['RandomForest', 'XGBoost'],
-                       help='Models to train')
-    parser.add_argument('--test-size', type=float, default=0.2,
-                       help='Test set size (0.1-0.5)')
+                       default=default_models,
+                       help=f'Models to train (default: {default_models})')
+    parser.add_argument('--test-size', type=float, default=default_test_size,
+                       help=f'Test set size (0.1-0.5) (default: {default_test_size})')
     
     # Other options
     parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
-                       default='INFO', help='Logging level')
+                       default=default_log_level, help=f'Logging level (default: {default_log_level})')
     parser.add_argument('--force-reprocess', action='store_true',
                        help='Force reprocessing even if data exists')
     
@@ -668,6 +714,12 @@ Examples:
     
     print("=" * 70)
     print("🧬 AFFINIFY CLI - Unified Data Processing & Model Training")
+    if config_manager:
+        print(f"📁 Configuration loaded from .env")
+        print(f"📊 Data directory: {getattr(PATHS_CONFIG, 'data_dir', 'data')}")
+        print(f"🤖 Models directory: {getattr(PATHS_CONFIG, 'models_dir', 'models')}")
+    else:
+        print("⚠️  Using default configuration (no .env found)")
     print("=" * 70)
     
     try:

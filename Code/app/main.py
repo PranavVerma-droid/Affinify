@@ -30,6 +30,99 @@ current_dir = Path(__file__).parent
 src_dir = current_dir.parent / 'src'
 sys.path.insert(0, str(src_dir))
 
+# Check for .env file first before importing anything else
+env_file = Path(__file__).parent.parent / '.env'
+env_example_file = Path(__file__).parent.parent / '.env.example'
+
+if not env_file.exists():
+    # If .env doesn't exist, show error page immediately
+    st.set_page_config(
+        page_title="Affinify - Configuration Required",
+        page_icon="⚠️",
+        layout="wide"
+    )
+    
+    st.error("### ⚠️ Configuration File Missing")
+    st.markdown("---")
+    
+    st.markdown("""
+    ## 🔧 Setup Required
+    
+    **The `.env` configuration file is missing.** Affinify requires this file to run properly.
+    
+    ### Option 1: Create from Template (Recommended)
+    
+    Run this command in your terminal:
+    """)
+    
+    st.code("""
+# Navigate to the project directory
+cd "/home/pranavverma/Github/Competitions/CBSE Skill Expo/Code/Code"
+
+# Copy the example file to create your configuration
+cp .env.example .env
+    """, language="bash")
+    
+    st.markdown("""
+    ### Option 2: Manual Creation
+    
+    1. **Copy the file manually:**
+       - Copy `.env.example` to `.env` in the same directory
+       - The file should be located at: `Code/Code/.env`
+    
+    2. **Edit settings (optional):**
+       - Open `.env` in any text editor
+       - Modify values as needed for your setup
+       - Save the file
+    
+    ### After Setup:
+    
+    1. **Restart this application:**
+       ```bash
+       # Stop the current app (Ctrl+C)
+       # Then restart it:
+       streamlit run app/main.py
+       ```
+    
+    2. **Verify setup:**
+       - The app should load normally
+       - Go to Settings page to see your configuration
+    """)
+    
+    if env_example_file.exists():
+        st.success("✅ `.env.example` template file found - ready to copy!")
+        
+        st.markdown("### 📄 Preview of Configuration Template:")
+        try:
+            with open(env_example_file, 'r') as f:
+                content = f.read()
+            
+            # Show first 30 lines as preview
+            lines = content.split('\n')
+            preview_lines = lines[:30]
+            preview_content = '\n'.join(preview_lines)
+            if len(lines) > 30:
+                preview_content += f"\n... ({len(lines) - 30} more lines)"
+            
+            st.code(preview_content, language="bash")
+        except Exception as e:
+            st.warning(f"Could not read .env.example: {e}")
+    else:
+        st.error("❌ `.env.example` template file not found!")
+        st.markdown("Please ensure you have the complete project files.")
+    
+    st.markdown("---")
+    st.info("💡 **Need Help?** Check the README.md file or documentation for detailed setup instructions.")
+    
+    st.stop()  # Stop execution here - don't continue loading the app
+
+# Import unified configuration FIRST (after .env check)
+from config.manager import get_config, get_config_manager
+
+# Load configuration
+config = get_config()
+config_manager = get_config_manager()
+
 from models.ml_models import AffinityPredictor
 import plotly.graph_objects as go
 from rdkit import Chem
@@ -49,12 +142,12 @@ except ImportError as e:
     st.error(f"Error importing modules: {e}")
     st.stop()
 
-# Page configuration
+# Page configuration using unified config
 st.set_page_config(
-    page_title="Affinify - AI-Powered Binding Affinity Predictor",
-    page_icon="🧬",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title=config.streamlit.page_title,
+    page_icon=config.streamlit.page_icon,
+    layout=config.streamlit.layout,
+    initial_sidebar_state=config.streamlit.sidebar_state
 )
 
 # Custom CSS
@@ -146,20 +239,33 @@ class AffinifyApp:
     """Main application class for the Affinify web interface"""
     
     def __init__(self):
+        # Use unified configuration
+        self.config = config
+        self.config_manager = config_manager
+        
+        # Set up paths from config
         self.project_root = Path(__file__).parent.parent
         self.cli_script = self.project_root / "scripts" / "affinity_cli.py"
-        self.data_dir = self.project_root / "data"
-        self.models_dir = self.project_root / "models"
-        self.results_dir = self.project_root / "results"
+        self.data_dir = self.project_root / self.config.paths.data_dir
+        self.models_dir = self.project_root / self.config.paths.models_dir
+        self.results_dir = self.project_root / self.config.paths.results_dir
         
-        # Initialize Ollama chat
-        self.chat = create_ollama_chat()
+        # Initialize Ollama chat with config
+        self.chat = self._create_ollama_chat()
         
         # Initialize session state
         self.init_session_state()
         
         # Load system status
         self.load_system_status()
+    
+    def _create_ollama_chat(self):
+        """Create Ollama chat instance using unified config"""
+        try:
+            return create_ollama_chat()
+        except Exception as e:
+            print(f"Error creating Ollama chat: {e}")
+            return None
     
     def init_session_state(self):
         """Initialize session state variables"""
@@ -1986,8 +2092,10 @@ class AffinifyApp:
             st.error(f"❌ Error loading analysis data: {e}")
     
     def show_settings_page(self):
-        """Show settings and configuration page"""
+        """Show settings and configuration page (read-only)"""
         st.markdown('<div class="sub-header">⚙️ Settings & Configuration</div>', unsafe_allow_html=True)
+        
+        st.info("🔧 **Configuration is managed via .env file only.** To change settings, stop the app, edit the .env file, and restart.")
         
         # System Information
         st.markdown("### 🖥️ System Information")
@@ -2006,35 +2114,163 @@ class AffinifyApp:
         
         st.markdown("---")
         
-        # Configuration Options
-        st.markdown("### 🔧 Configuration")
+        # Current Configuration Display
+        st.markdown("### ⚙️ Current Configuration")
         
-        col1, col2 = st.columns(2)
+        # Create tabs for different config sections
+        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+            "📊 Data", "🤖 Models", "🎨 Visualization", "🔧 Performance", "📝 Logging", "🤖 AI Assistant"
+        ])
+        
+        with tab1:
+            st.markdown("#### Data Processing Settings")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Sample Size", self.config.data.sample_size)
+                st.metric("Test Size", f"{self.config.data.test_size:.1%}")
+                st.metric("Random State", self.config.data.random_state)
+                st.metric("Max Rows", self.config.data.max_rows)
+            
+            with col2:
+                st.metric("Min Binding Affinity", self.config.data.min_binding_affinity)
+                st.metric("Max Binding Affinity", self.config.data.max_binding_affinity)
+                st.info(f"**BindingDB Enabled:** {'✅' if self.config.data.bindingdb_enabled else '❌'}")
+                st.info(f"**Sample Data Enabled:** {'✅' if self.config.data.sample_enabled else '❌'}")
+        
+        with tab2:
+            st.markdown("#### Machine Learning Models")
+            
+            # Random Forest
+            if self.config.models.rf.enabled:
+                st.markdown("##### 🌲 Random Forest (Enabled)")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("N Estimators", self.config.models.rf.n_estimators)
+                    st.metric("Max Depth", self.config.models.rf.max_depth or "None")
+                with col2:
+                    st.metric("Min Samples Split", self.config.models.rf.min_samples_split)
+                    st.metric("Min Samples Leaf", self.config.models.rf.min_samples_leaf)
+                with col3:
+                    st.metric("Max Features", self.config.models.rf.max_features)
+                    st.metric("N Jobs", self.config.models.rf.n_jobs)
+            else:
+                st.markdown("##### 🌲 Random Forest (Disabled)")
+            
+            # XGBoost
+            if self.config.models.xgb.enabled:
+                st.markdown("##### ⚡ XGBoost (Enabled)")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("N Estimators", self.config.models.xgb.n_estimators)
+                    st.metric("Max Depth", self.config.models.xgb.max_depth)
+                with col2:
+                    st.metric("Learning Rate", self.config.models.xgb.learning_rate)
+                    st.metric("Subsample", self.config.models.xgb.subsample)
+                with col3:
+                    st.metric("Colsample Bytree", self.config.models.xgb.colsample_bytree)
+                    st.metric("Random State", self.config.models.xgb.random_state)
+            else:
+                st.markdown("##### ⚡ XGBoost (Disabled)")
+            
+            # Neural Network
+            if self.config.models.nn.enabled:
+                st.markdown("##### 🧠 Neural Network (Enabled)")
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Hidden Layers", str(self.config.models.nn.hidden_layers))
+                    st.metric("Dropout Rate", self.config.models.nn.dropout_rate)
+                with col2:
+                    st.metric("Learning Rate", self.config.models.nn.learning_rate)
+                    st.metric("Batch Size", self.config.models.nn.batch_size)
+                with col3:
+                    st.metric("Epochs", self.config.models.nn.epochs)
+                    st.metric("Random State", self.config.models.nn.random_state)
+            else:
+                st.markdown("##### � Neural Network (Disabled)")
+        
+        with tab3:
+            st.markdown("#### Visualization & Animation")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Plot Style", self.config.visualization.plot_style)
+                st.metric("Figure Size", f"{self.config.visualization.figure_width}x{self.config.visualization.figure_height}")
+                st.metric("DPI", self.config.visualization.dpi)
+                st.metric("Save Format", self.config.visualization.save_format)
+            
+            with col2:
+                st.metric("Animation FPS", self.config.visualization.fps)
+                st.metric("Animation Duration", f"{self.config.visualization.duration}s")
+                st.metric("Molecular Viewer Size", f"{self.config.visualization.molecular_width}x{self.config.visualization.molecular_height}")
+                st.metric("Molecular Style", self.config.visualization.molecular_style)
+        
+        with tab4:
+            st.markdown("#### Performance Targets")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Target R²", self.config.performance.target_r2)
+                st.metric("Target RMSE", self.config.performance.target_rmse)
+            
+            with col2:
+                st.metric("Max Prediction Time", f"{self.config.performance.max_prediction_time}s")
+                st.metric("CV Folds", self.config.performance.cv_folds)
+        
+        with tab5:
+            st.markdown("#### Logging Configuration")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.metric("Log Level", self.config.logging.level)
+                st.metric("Log File", self.config.logging.file)
+            
+            with col2:
+                st.code(self.config.logging.format, language="text")
+        
+        with tab6:
+            st.markdown("#### AI Assistant (Ollama)")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.info(f"**Enabled:** {'✅' if self.config.ollama.enabled else '❌'}")
+                st.metric("Host", self.config.ollama.host)
+                st.metric("Model", self.config.ollama.model)
+                st.metric("Temperature", self.config.ollama.temperature)
+            
+            with col2:
+                st.metric("Max Tokens", self.config.ollama.max_tokens)
+                st.metric("Timeout", f"{self.config.ollama.timeout}s")
+                st.metric("Chat Title", self.config.ollama.chat_title)
+        
+        st.markdown("---")
+        
+        # Enabled Models Summary
+        st.markdown("### 🎯 Enabled Features")
+        
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.markdown("#### 📊 Data Processing")
-            
-            default_sample_size = st.number_input("Default Sample Size", 1000, 100000, 5000)
-            default_max_rows = st.number_input("Default Max BindingDB Rows", 1000, 1000000, 50000)
-            default_test_size = st.slider("Default Test Size", 0.1, 0.5, 0.2, 0.05)
+            st.markdown("#### Models")
+            enabled_models = self.config_manager.get_enabled_models()
+            for model in enabled_models:
+                st.success(f"✅ {model}")
+            if not enabled_models:
+                st.warning("⚠️ No models enabled")
         
         with col2:
-            st.markdown("#### 🤖 Model Training")
-            
-            default_models = st.multiselect(
-                "Default Models",
-                ["RandomForest", "XGBoost", "NeuralNetwork"],
-                default=["RandomForest", "XGBoost"]
-            )
-            
-            log_level = st.selectbox(
-                "Log Level",
-                ["DEBUG", "INFO", "WARNING", "ERROR"],
-                index=1
-            )
+            st.markdown("#### Data Sources")
+            if self.config.data.bindingdb_enabled:
+                st.success("✅ BindingDB")
+            if self.config.data.sample_enabled:
+                st.success("✅ Sample Data")
         
-        if st.button("💾 Save Configuration"):
-            st.success("✅ Configuration saved (placeholder)")
+        with col3:
+            st.markdown("#### AI Features")
+            if self.config.ollama.enabled:
+                st.success("✅ Ollama Assistant")
+            else:
+                st.info("ℹ️ AI Assistant Disabled")
         
         st.markdown("---")
         
@@ -2080,9 +2316,40 @@ class AffinifyApp:
                 else:
                     st.warning("⚠️ Models directory not found")
         
+        # Configuration File Info
+        st.markdown("---")
+        st.markdown("### 📄 Configuration File")
+        
+        env_path = Path(".env")
+        if env_path.exists():
+            st.success(f"✅ Configuration loaded from: {env_path.absolute()}")
+            
+            if st.button("📖 Show .env Content"):
+                try:
+                    with open(env_path, 'r') as f:
+                        content = f.read()
+                    st.code(content, language="bash")
+                except Exception as e:
+                    st.error(f"❌ Error reading .env file: {e}")
+        else:
+            st.warning("⚠️ No .env file found. Using default configuration.")
+            
+            if st.button("📄 Create .env from example"):
+                example_path = Path(".env.example")
+                if example_path.exists():
+                    try:
+                        import shutil
+                        shutil.copy2(example_path, env_path)
+                        st.success("✅ Created .env from .env.example")
+                        st.info("🔄 Please restart the application to load the new configuration.")
+                    except Exception as e:
+                        st.error(f"❌ Error creating .env: {e}")
+                else:
+                    st.error("❌ No .env.example file found")
+        
         st.markdown("---")
         
-        # Processing History
+        # Processing History (if available)
         if st.session_state.processing_log:
             st.markdown("### 📋 Processing History")
             

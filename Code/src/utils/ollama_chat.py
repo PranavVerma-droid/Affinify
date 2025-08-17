@@ -9,20 +9,52 @@ import streamlit as st
 import requests
 from pathlib import Path
 import time
+import sys
 from typing import Generator, Optional, Dict, Any
+
+# Add src directory to path for config import
+current_dir = Path(__file__).parent
+src_dir = current_dir.parent
+sys.path.insert(0, str(src_dir))
+
+# Import unified configuration
+try:
+    from config.manager import get_config
+    config = get_config()
+    OLLAMA_CONFIG = config.ollama
+except ImportError as e:
+    print(f"Warning: Could not import unified config: {e}")
+    # Fallback configuration
+    class FallbackConfig:
+        enabled = True
+        host = "http://localhost:11434"
+        model = "llama3.2:3b"
+        temperature = 0.7
+        max_tokens = 1000
+        timeout = 30
+        system_prompt = "You are a helpful AI assistant."
+        welcome_message = "Hello! How can I help you today?"
+        error_message = "I'm having trouble connecting to the AI model."
+        chat_title = "🤖 AI Assistant"
+    OLLAMA_CONFIG = FallbackConfig()
 
 class OllamaChat:
     """Chat interface for Ollama with streaming support"""
     
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.enabled = config.get('enabled', False)
-        self.host = config.get('host', 'http://localhost:11434')
-        self.model = config.get('model', 'llama3.2:3b')
-        self.temperature = config.get('temperature', 0.7)
-        self.max_tokens = config.get('max_tokens', 1000)
-        self.timeout = config.get('timeout', 30)
-        self.system_prompt = config.get('system_prompt', '')
+    def __init__(self, config_dict: Optional[Dict[str, Any]] = None):
+        # Use provided config or global config
+        if config_dict:
+            self.config = type('Config', (), config_dict)()
+        else:
+            self.config = OLLAMA_CONFIG
+            
+        self.enabled = getattr(self.config, 'enabled', True)
+        self.host = getattr(self.config, 'host', 'http://localhost:11434')
+        self.model = getattr(self.config, 'model', 'llama3.2:3b')
+        self.temperature = getattr(self.config, 'temperature', 0.7)
+        self.max_tokens = getattr(self.config, 'max_tokens', 1000)
+        self.timeout = getattr(self.config, 'timeout', 30)
+        self.system_prompt = getattr(self.config, 'system_prompt', '')
         
         # Initialize session state
         self.init_session_state()
@@ -32,7 +64,7 @@ class OllamaChat:
         if 'chat_messages' not in st.session_state:
             st.session_state.chat_messages = []
             # Add welcome message
-            welcome_msg = self.config.get('welcome_message', 'Hello! How can I help you today?')
+            welcome_msg = getattr(self.config, 'welcome_message', 'Hello! How can I help you today?')
             st.session_state.chat_messages.append({
                 'role': 'assistant',
                 'content': welcome_msg
@@ -200,16 +232,9 @@ class OllamaChat:
 
 
 def load_config() -> Dict[str, Any]:
-    """Load configuration from config.json"""
+    """Load configuration from unified config"""
     try:
-        config_path = Path(__file__).parent.parent.parent / "config" / "config.json"
-        if config_path.exists():
-            with open(config_path, 'r') as f:
-                config = json.load(f)
-            return config.get('ollama', {})
-        else:
-            print(f"Config file not found at {config_path}")
-            return {}
+        return OLLAMA_CONFIG.__dict__
     except Exception as e:
         print(f"Error loading config: {e}")
         return {}
@@ -217,8 +242,7 @@ def load_config() -> Dict[str, Any]:
 
 def create_ollama_chat() -> OllamaChat:
     """Create and return an OllamaChat instance"""
-    config = load_config()
-    return OllamaChat(config)
+    return OllamaChat()
 
 
 # For testing purposes

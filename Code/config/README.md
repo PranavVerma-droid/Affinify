@@ -1,1 +1,0 @@
-Please Rename `config.json.sample` to `config.json` and `config.py.sample` to `config.py` before using.

@@ -22,6 +22,33 @@ import time
 import os
 import sys
 
+# Add src directory to path for config import
+current_dir = Path(__file__).parent
+src_dir = current_dir.parent
+sys.path.insert(0, str(src_dir))
+
+# Import unified config
+try:
+    from config.manager import get_config
+    config = get_config()
+    VIZ_CONFIG = config.visualization
+    PATHS_CONFIG = config.paths
+except ImportError as e:
+    print(f"Warning: Could not import unified config: {e}")
+    # Fallback to default values
+    class FallbackConfig:
+        fps = 15
+        duration = 8
+        output_dir = "videos"
+        atom_colors = {
+            'C': '#606060', 'O': '#FF0D0D', 'N': '#0000FF', 'H': '#CCCCCC',
+            'S': '#FFFF30', 'P': '#FF8000', 'F': '#90E050', 'Cl': '#1FF01F',
+            'Br': '#A62929', 'I': '#940094', 'DEFAULT': '#FFC0CB'
+        }
+    VIZ_CONFIG = FallbackConfig()
+    PATHS_CONFIG = FallbackConfig()
+    PATHS_CONFIG.videos_dir = "videos"
+
 # Try to import RDKit, which is essential for molecular processing
 try:
     from rdkit import Chem
@@ -36,38 +63,34 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Define CPK colors for common elements
-ATOM_COLORS = {
-    'C': '#606060',  # Carbon (gray)
-    'O': '#FF0D0D',  # Oxygen (red)
-    'N': '#0000FF',  # Nitrogen (blue)
-    'H': '#CCCCCC',  # Hydrogen (light gray)
-    'S': '#FFFF30',  # Sulfur (yellow)
-    'P': '#FF8000',  # Phosphorus (orange)
-    'F': '#90E050',  # Fluorine (light green)
-    'Cl': '#1FF01F', # Chlorine (green)
-    'Br': '#A62929', # Bromine (dark red)
-    'I': '#940094',  # Iodine (purple)
-    'DEFAULT': '#FFC0CB' # Default (pink)
-}
-
 class ProteinLigandAnimator:
     """Creates animated visualizations of protein-ligand binding interactions"""
     
-    def __init__(self, output_dir: str = "videos"):
+    def __init__(self, output_dir: str = None):
         """
         Initialize the animator.
         
         Args:
-            output_dir: Directory to save animation videos
+            output_dir: Directory to save animation videos. If None, uses config value.
         """
+        # Use config values or fallback to provided/default values
+        if output_dir is None:
+            output_dir = getattr(VIZ_CONFIG, 'output_dir', getattr(PATHS_CONFIG, 'videos_dir', 'videos'))
+        
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
-        # Animation parameters
-        self.fps = 15
-        self.duration = 8
+        # Animation parameters from config
+        self.fps = getattr(VIZ_CONFIG, 'fps', 15)
+        self.duration = getattr(VIZ_CONFIG, 'duration', 8)
         self.frames = self.fps * self.duration
+        
+        # Atom colors from config
+        self.atom_colors = getattr(VIZ_CONFIG, 'atom_colors', {
+            'C': '#606060', 'O': '#FF0D0D', 'N': '#0000FF', 'H': '#CCCCCC',
+            'S': '#FFFF30', 'P': '#FF8000', 'F': '#90E050', 'Cl': '#1FF01F',
+            'Br': '#A62929', 'I': '#940094', 'DEFAULT': '#FFC0CB'
+        })
         
     def smiles_to_3d_structure(self, smiles: str) -> Optional[Dict]:
         """
@@ -300,7 +323,7 @@ class ProteinLigandAnimator:
             # --- Drawing Ligand (Accurate) ---
             # Draw ligand atoms with specific colors
             for i, symbol in enumerate(ligand_structure['symbols']):
-                color = ATOM_COLORS.get(symbol, ATOM_COLORS['DEFAULT'])
+                color = self.atom_colors.get(symbol, self.atom_colors['DEFAULT'])
                 atom_pos = ligand_atoms[i]
                 ax_main.scatter(atom_pos[0], atom_pos[1], atom_pos[2],
                               c=color, s=80, alpha=0.9, edgecolors='w', linewidth=0.5)

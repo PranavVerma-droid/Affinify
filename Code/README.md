@@ -41,6 +41,69 @@ python scripts/affinity_cli.py --process --train --data-source bindingdb --max-r
 streamlit run app/main.py
 ```
 
+## ⚙️ Configuration
+
+**Affinify uses a single `.env` file for ALL configuration settings.**
+
+### Quick Setup:
+
+1. **Copy the example configuration:**
+   ```bash
+   cp .env.example .env
+   ```
+
+2. **Edit settings as needed:**
+   ```bash
+   nano .env  # or use your preferred editor
+   ```
+
+3. **Start the application:**
+   ```bash
+   streamlit run app/main.py
+   ```
+
+### Configuration Management:
+
+- **Single Source**: All settings are in `.env` file
+- **Read-Only UI**: Settings page shows current config but doesn't allow changes
+- **To Change Settings**: Stop app → Edit `.env` → Restart app
+- **Environment-Based**: Easy switching between dev/prod configurations
+
+### Key Settings Categories:
+
+- **Data Processing**: Sample sizes, test ratios, data sources
+- **ML Models**: RandomForest, XGBoost, Neural Network parameters  
+- **Animation**: FPS, duration, colors, output directories
+- **Visualization**: Plot styles, figure sizes, molecular viewer settings
+- **AI Assistant**: Ollama integration settings
+- **Logging**: Log levels, formats, file paths
+- **Performance**: Target metrics, cross-validation settings
+
+### Examples:
+
+**Change animation settings:**
+```bash
+# In .env file
+ANIMATION_FPS=20
+ANIMATION_DURATION=10
+```
+
+**Disable certain models:**
+```bash
+# In .env file  
+MODEL_NN_ENABLED=false
+MODEL_XGB_ENABLED=false
+```
+
+**Adjust data processing:**
+```bash
+# In .env file
+DATA_SAMPLE_SIZE=10000
+DATA_MAX_ROWS=100000
+```
+
+See `.env.example` for all available settings with descriptions.
+
 ## 🤖 Ollama AI Integration
 
 Affinify includes an integrated AI assistant powered by Ollama for enhanced user support and molecular modeling guidance.
@@ -83,23 +146,18 @@ There are 3 versions of the model, which vary on size:
 - Affinify-AI:3b - Trained on llama3.2:3b
 - Affinify-AI:1b - Trained on llama3.2:1b
 
-
-
 ### Configuration
 
-Enable/disable Ollama integration in `config/config.json`:
+Enable/disable Ollama integration in `.env`:
 
-```json
-{
-  "ollama": {
-    "enabled": true,                              // Set to false to disable
-    "host": "http://localhost:11434",             // Ollama server URL
-    "model": "pranavverma/Affinify-AI:latest",   // Model to use
-    "temperature": 0.7,                          // Response creativity (0.0-1.0)
-    "max_tokens": 1000,                          // Max response length
-    "timeout": 30                                // Request timeout (seconds)
-  }
-}
+```bash
+# Ollama AI Assistant Configuration
+OLLAMA_ENABLED=true
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=pranavverma/Affinify-AI:3b
+OLLAMA_TEMPERATURE=0.7
+OLLAMA_MAX_TOKENS=1000
+OLLAMA_TIMEOUT=30
 ```
 
 ### Using Different Models
@@ -113,11 +171,9 @@ To use a different Ollama model:
    ollama pull mistral:7b
    ```
 
-2. **Update config**:
-   ```json
-   {
-     "ollama": {
-       "model": "llama2:7b"  // Change to your preferred model
+2. **Update .env**:
+   ```bash
+   OLLAMA_MODEL=llama2:7b  # Change to your preferred model
      }
    }
    ```
@@ -170,14 +226,21 @@ Set `"enabled": false` in config.json if you prefer to use the application witho
 
 ```
 Code/
+├── .env                         # 🆕 UNIFIED configuration file
+├── .env.example                 # Configuration template with all settings
 ├── scripts/
-│   └── affinity_cli.py          # 🆕 Unified CLI (replaces 3 old scripts)
+│   └── affinity_cli.py          # 🆕 Unified CLI (uses .env config)
 ├── src/
+│   ├── config/
+│   │   └── manager.py           # 🆕 Unified configuration manager
 │   ├── data_processing/         # Data collection and feature extraction
 │   ├── models/                  # ML model implementations
-│   └── visualization/           # Plotting and visualization
+│   └── visualization/           # Plotting and visualization (uses .env config)
 ├── app/
-│   └── main.py                  # Streamlit web interface
+│   └── main.py                  # Streamlit web interface (uses .env config)
+├── config/
+│   ├── README.md                # Configuration documentation
+│   └── old_configs/             # 🗂️ Backup of old config.json/config.py
 ├── data/
 │   ├── raw/bindingdb/          # Raw BindingDB data
 │   └── processed/              # Processed features and datasets
@@ -203,6 +266,8 @@ Recent training results on BindingDB data:
 
 ## 🔧 CLI Options
 
+The CLI now uses configuration defaults from your `.env` file:
+
 ```bash
 # Main actions
 --download          # Guide through BindingDB download
@@ -210,18 +275,27 @@ Recent training results on BindingDB data:
 --train             # Train machine learning models
 --all               # Run complete pipeline
 
-# Data options
---data-source       # Choose: bindingdb, sample, or auto
---sample-size       # Size of sample dataset (default: 5000)
---max-rows          # Max rows from BindingDB (default: 50000)
+# Data options (with .env defaults)
+--data-source       # Choose: bindingdb, sample, or auto (default from DATA_SOURCE)
+--sample-size       # Size of sample dataset (default from DATA_SAMPLE_SIZE)
+--max-rows          # Max rows from BindingDB (default from DATA_MAX_ROWS)
 
-# Model options
---models            # Select models: RandomForest, XGBoost, NeuralNetwork
---test-size         # Test set proportion (default: 0.2)
+# Model options (with .env defaults)
+--models            # Select models: RandomForest, XGBoost, NeuralNetwork (default from CLI_DEFAULT_MODELS)
+--test-size         # Test set proportion (default from DATA_TEST_SIZE)
 
-# Other options
---log-level         # Logging level: DEBUG, INFO, WARNING, ERROR
+# Other options (with .env defaults)
+--log-level         # Logging level (default from LOG_LEVEL)
 --force-reprocess   # Force reprocessing of existing data
+```
+
+**CLI Configuration in .env:**
+```bash
+# Set your preferred CLI defaults
+CLI_DEFAULT_MODELS=RandomForest,XGBoost
+DATA_SAMPLE_SIZE=10000
+DATA_MAX_ROWS=100000
+LOG_LEVEL=INFO
 ```
 
 ## 🎯 Examples
