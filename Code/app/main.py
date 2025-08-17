@@ -4,17 +4,25 @@ Affinify Web App - Unified Streamlit Interface
 A clean, unified web application for the Affinify protein-ligand binding affinity predictor.
 """
 
-import streamlit as st
-import pandas as pd
-import numpy as np
-import json
-import os
 import sys
-import subprocess
+import json
 import time
-from pathlib import Path
+import random
+import base64
+import zipfile
+import subprocess
+import numpy as np
+import pandas as pd
+import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+
+try:
+    import py3Dmol
+except ImportError:
+    py3Dmol = None
+
+from pathlib import Path
 from datetime import datetime
 
 # Add src directory to path
@@ -27,9 +35,6 @@ import plotly.graph_objects as go
 from rdkit import Chem
 from rdkit.Chem import Draw
 from rdkit.Chem import AllChem
-import py3Dmol
-import base64
-from io import BytesIO
 
 # Import components.v1 explicitly
 from streamlit.components.v1 import html
@@ -114,6 +119,25 @@ st.markdown("""
 .stButton > button:hover {
     transform: translateY(-1px);
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+/* Ensure GIF animations play properly */
+.gif-animation {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    image-rendering: auto;
+    image-rendering: -webkit-optimize-contrast;
+    -webkit-backface-visibility: hidden;
+    -webkit-transform: translate3d(0,0,0);
+}
+.animation-container {
+    text-align: center;
+    margin: 20px 0;
+    background: white;
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 </style>
 """, unsafe_allow_html=True)
@@ -617,7 +641,7 @@ class AffinifyApp:
             
             return svg
         except Exception as e:
-            logger.error(f"Error rendering molecule: {e}")
+            print(f"Error rendering molecule: {e}")
             return None
 
     def render_molecule_3d(self, smiles: str, size: tuple = (400, 400)) -> str:
@@ -663,7 +687,7 @@ class AffinifyApp:
             
             return html_content
         except Exception as e:
-            logger.error(f"Error rendering 3D molecule: {e}")
+            print(f"Error rendering 3D molecule: {e}")
             return None
 
     def show_predictions_page(self):
@@ -1466,11 +1490,27 @@ class AffinifyApp:
                                         col1, col2 = st.columns([2, 1])
                                         
                                         with col1:
-                                            # Display the animation
+                                            # Display the animation using HTML to ensure GIF plays
                                             st.markdown("**Generated Animation:**")
                                             with open(video_path, 'rb') as f:
                                                 video_bytes = f.read()
-                                            st.image(video_bytes, caption=f"Binding animation: {target_protein}")
+                                            
+                                            # Convert to base64 for HTML embedding
+                                            import base64
+                                            video_base64 = base64.b64encode(video_bytes).decode()
+                                            
+                                            # Display GIF using HTML to ensure animation plays
+                                            gif_html = f"""
+                                            <div style="text-align: center; margin: 20px 0;">
+                                                <img src="data:image/gif;base64,{video_base64}" 
+                                                     style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"
+                                                     alt="Binding animation: {target_protein}">
+                                                <p style="margin-top: 10px; color: #666; font-style: italic;">
+                                                    Binding animation: {target_protein}
+                                                </p>
+                                            </div>
+                                            """
+                                            html(gif_html, height=450)
                                         
                                         with col2:
                                             # Show details and download
@@ -1478,7 +1518,6 @@ class AffinifyApp:
                                             st.text(f"File: {video_path.name}")
                                             st.text(f"Size: {video_path.stat().st_size / 1024:.1f} KB")
                                             st.text(f"Format: GIF")
-                                            
                                             # Download button
                                             st.download_button(
                                                 "📥 Download Animation",
@@ -1486,7 +1525,6 @@ class AffinifyApp:
                                                 file_name=video_path.name,
                                                 mime="image/gif"
                                             )
-                                            
                                             # Show parameters
                                             with st.expander("📋 Parameters"):
                                                 st.json({
@@ -1509,9 +1547,26 @@ class AffinifyApp:
                             if gif_files:
                                 latest_gif = gif_files[0]
                                 st.markdown("### 🎬 Animation Ready!")
+                                
                                 with open(latest_gif, 'rb') as f:
                                     video_bytes = f.read()
-                                st.image(video_bytes, caption=f"Binding animation: {target_protein}")
+                                
+                                # Convert to base64 for HTML embedding
+                                import base64
+                                video_base64 = base64.b64encode(video_bytes).decode()
+                                
+                                # Display GIF using HTML to ensure animation plays
+                                gif_html = f"""
+                                <div style="text-align: center; margin: 20px 0;">
+                                    <img src="data:image/gif;base64,{video_base64}" 
+                                         style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"
+                                         alt="Binding animation">
+                                    <p style="margin-top: 10px; color: #666; font-style: italic;">
+                                        Binding animation: {target_protein}
+                                    </p>
+                                </div>
+                                """
+                                html(gif_html, height=600)
                                 
                                 st.download_button(
                                     "📥 Download Animation",
@@ -1650,7 +1705,23 @@ class AffinifyApp:
                                                     with open(video_path, 'rb') as f:
                                                         video_bytes = f.read()
                                                     
-                                                    st.image(video_bytes, caption=f"{example['name']} binding animation")
+                                                    # Convert to base64 for HTML embedding
+                                                    import base64
+                                                    video_base64 = base64.b64encode(video_bytes).decode()
+                                                    
+                                                    # Display GIF using HTML to ensure animation plays
+                                                    gif_html = f"""
+                                                    <div style="text-align: center; margin: 20px 0;">
+                                                        <img src="data:image/gif;base64,{video_base64}" 
+                                                             style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"
+                                                             alt="Binding animation: {example['name']}">
+                                                        <p style="margin-top: 10px; color: #666; font-style: italic;">
+                                                            {example['name']} binding animation
+                                                        </p>
+                                                    </div>
+                                                    """
+                                                    html(gif_html, height=600)
+                                                    
                                                     st.download_button(
                                                         f"📥 Download {example['name']} Animation",
                                                         data=video_bytes,
@@ -1684,7 +1755,22 @@ class AffinifyApp:
                                 try:
                                     with open(gif_file, 'rb') as f:
                                         video_bytes = f.read()
-                                    st.image(video_bytes, caption=gif_file.name, use_column_width=True)
+                                    
+                                    # Convert to base64 for HTML embedding
+                                    import base64
+                                    video_base64 = base64.b64encode(video_bytes).decode()
+                                    
+                                    # Display animated GIF using HTML
+                                    gif_html = f"""
+                                    <div style="text-align: center; margin: 10px 0;">
+                                        <h4>{gif_file.name}</h4>
+                                        <img src="data:image/gif;base64,{video_base64}" 
+                                             style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                                             alt="{gif_file.name}">
+                                    </div>
+                                    """
+                                    html(gif_html, height=350)
+                                    
                                     file_size = gif_file.stat().st_size / 1024
                                     mod_time = datetime.fromtimestamp(gif_file.stat().st_mtime).strftime("%Y-%m-%d %H:%M")
                                     st.text(f"Size: {file_size:.1f} KB")

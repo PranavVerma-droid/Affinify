@@ -65,7 +65,7 @@ class ProteinLigandAnimator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Animation parameters
-        self.fps = 30
+        self.fps = 15
         self.duration = 8
         self.frames = self.fps * self.duration
         
