@@ -123,8 +123,13 @@ from config.manager import get_config, get_config_manager
 config = get_config()
 config_manager = get_config_manager()
 
-from models.ml_models import AffinityPredictor
-import plotly.graph_objects as go
+try:
+    from src.models.ml_models import AffinityPredictor
+except ImportError:
+    # Fallback import for when running from app directory
+    sys.path.append(str(Path(__file__).parent.parent))
+    from src.models.ml_models import AffinityPredictor
+
 from rdkit import Chem
 from rdkit.Chem import Draw
 from rdkit.Chem import AllChem
@@ -133,14 +138,27 @@ from rdkit.Chem import AllChem
 from streamlit.components.v1 import html
 
 try:
-    from data_processing.data_collector import DataCollector
-    from data_processing.feature_extractor import MolecularFeatureExtractor
-    from models.ml_models import ModelTrainer
-    from visualization.molecular_viz import MolecularVisualizer
-    from utils.ollama_chat import create_ollama_chat
+    from src.data_processing.data_collector import DataCollector
+    from src.data_processing.feature_extractor import MolecularFeatureExtractor
+    from src.models.ml_models import ModelTrainer
+    from src.visualization.molecular_viz import MolecularVisualizer
+    from src.utils.ollama_chat import create_ollama_chat
 except ImportError as e:
-    st.error(f"Error importing modules: {e}")
-    st.stop()
+    # Try fallback imports without src prefix
+    try:
+        root_path = Path(__file__).parent.parent
+        if str(root_path) not in sys.path:
+            sys.path.insert(0, str(root_path))
+        
+        from src.data_processing.data_collector import DataCollector
+        from src.data_processing.feature_extractor import MolecularFeatureExtractor
+        from src.models.ml_models import ModelTrainer
+        from src.visualization.molecular_viz import MolecularVisualizer
+        from src.utils.ollama_chat import create_ollama_chat
+    except ImportError as e2:
+        st.error(f"Error importing modules: {e2}")
+        st.error("Please ensure you're running from the correct directory")
+        st.stop()
 
 # Page configuration using unified config
 st.set_page_config(

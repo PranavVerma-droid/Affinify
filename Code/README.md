@@ -13,6 +13,13 @@ cd Code
 conda create -n affinity_env python=3.9
 conda activate affinity_env
 pip install -r requirements.txt
+
+# Install TensorFlow for neural network models
+pip install tensorflow
+
+# Optional: Install with GPU support (if you have a compatible GPU)
+# pip install tensorflow[and-cuda]
+
 # Note: Some packages may fail - that's okay, fallbacks are available
 ```
 
